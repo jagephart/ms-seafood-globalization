@@ -1,0 +1,76 @@
+---
+title: "Seafood Globalization SI"
+author: "Jessica Gephart"
+date: '2022-06-24'
+output:
+  html_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(tidyverse)
+library(kableExtra)
+```
+
+# Optimization diagnostics
+
+
+# ARTIS compared with BACI
+
+```{r baci_artis_compare}
+# Directory file paths
+baci_dir <- "/Volumes/jgephart/ARTIS/Outputs/model_inputs"
+artis_dir <- "/Volumes/jgephart/ARTIS/Outputs/S_net/20220614_ARTIS-timeseries/artis_ts"
+artis_filename <- "mid_artis_ts.csv"
+outdir <- "/Volumes/jgephart/ARTIS/Outputs/S_net/20220614_ARTIS-timeseries"
+
+# Read in ARTIS totals
+artis <- read.csv(file.path(artis_dir, artis_filename))
+artis_custom <- read.csv(file.path(outdir, "custom_artis_ts.csv"))
+
+# Read in compiled BACI totals (output from compare_baci_snet.R)
+baci <- read.csv("/Volumes/jgephart/ARTIS/Outputs/baci_totals_allhs.csv")
+
+```
+
+After filtering to include the same set of product codes, total estimated ARTIS trade flows follow BACI trade flows closely (SI Fig X). Since a threshold is imposed to remove small trade flows in the ARTIS model, a small volume loss is expected. To balance using the most recent trade code version with the fact that total volumes lag for several years compared to total volumes reported under the previous code, we created a composite time series consisting of select years and code versions (SI Table X). 
+
+```{r}
+kable(artis_custom %>% 
+        select(year, hs_version), col.names = c("Year", "HS version"))
+```
+
+
+```{r plot_baci_artis, fig.cap = "Comparison of total export volume by HS code version for BACI (solid lines) and ARTIS (dashed lines). The solid black line indicates the composite ARTIS time series."}
+ggplot() +
+  geom_line(baci, mapping = aes(x = year, y = product_weight_t, color = factor(as.numeric(hs_version)))) +
+  geom_line(artis, mapping = aes(x = year, y = product_weight_t, color = factor(hs_version)), linetype = "dashed") +
+  geom_line(artis_custom, mapping = aes(x = year, y = product_weight_t), color = "black") +
+  labs(x = "", y = "Exports (t, product weight)", color = "HS version") +
+  theme_bw()
+```
+
+FIX IT: the total weight differences are greater than we estimated previously, likely due to the differences in what is estimated with quadprog versus cvxopt
+
+```{r compare_custom_ts}
+baci_artis <- baci %>%
+  mutate(hs_version = as.numeric(hs_version)) %>%
+  rename("baci_product_weight_t" = "product_weight_t") %>%
+  right_join(artis_custom %>% 
+              rename("artis_product_weight_t" = "product_weight_t"), 
+            by = c("year", "hs_version")) %>%
+  mutate(percent_diff = 100*(baci_product_weight_t-artis_product_weight_t)/baci_product_weight_t)
+
+ggplot(baci_artis, aes(x = year, y = percent_diff)) +
+  geom_line() + 
+  labs(x = "", y = "Percent difference") +
+  theme_bw()
+```
+
+# Species presence in trade
+
+# Estimated range for import processing
+
+# References
