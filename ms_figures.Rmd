@@ -1,0 +1,444 @@
+---
+title: "ms_figures"
+author: "Jessica Gephart"
+date: "2022-08-15"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+library(tidyverse)
+library(countrycode)
+library(circlize)
+library(here)
+library(ggpubr)
+library(kableExtra)
+library(DBI)
+library(janitor)
+library(viridis)
+library(broom)
+library(exploreARTIS)
+library(vegan)
+
+```
+
+```{r load_database_data}
+# Load ARTIS data from SQL local database
+con <- dbConnect(RPostgres::Postgres(),
+                 dbname=Sys.getenv("POSTGRES_DB"),
+                 host="localhost",
+                 port="5432",
+                 user=Sys.getenv("POSTGRES_USER"),
+                 password=Sys.getenv("POSTGRES_PASSWORD"))
+
+# Check that connection is established by checking which tables are present
+dbListTables(con)
+
+# Pull all ARTIS and production data
+artis <- dbGetQuery(con, "SELECT * FROM snet")
+
+
+artis <- artis %>%
+  select(-record_id) %>%
+  # Remove 2020 for now
+  filter(year < 2020)
+
+prod <- dbGetQuery(con, "SELECT * FROM production")
+prod <- prod %>%
+  select(-record_id) %>%
+  # Remove 2020 for now
+  filter(year < 2020)
+
+# Close database connection
+dbDisconnect(con)
+
+rm(list = c("con"))
+```
+
+```{r set_directories}
+# Set time series dates
+date_nodash <- "20220614"
+date_dash <- "2022-06-14"
+
+# Set directories 
+# datadir <-  paste("/Volumes/jgephart/ARTIS/Outputs/S_net/", date_nodash, "_ARTIS-timeseries", sep="")
+model_inputs_dir <- "/Volumes/jgephart/ARTIS/Outputs/model_inputs_archive_20220718"
+outdir <- "/Volumes/jgephart/ARTIS/Outputs/ms_seafood_globalization"
+
+# Set color palettes
+# All colors from palette: #FFE6BE (light yellow), #F7AF75 (light orange), #F37542 (medium orange), 
+# #E24027 (dark orange), #0F2D59 (navy), #1B708F (blue), #2E8D9A (teal), #86ADA7 (light blue)
+method_colors <- c("#F7AF75", "#2E8D9A", "#86ADA7") # light orange, teal, light blue
+source_colors <- c("#F37542", "#0F2D59", "#86ADA7") # medium orange, navy, light blue
+
+```
+
+```{r load_drive_data}
+code_max_resolved_taxa <- read.csv("/Volumes/jgephart/ARTIS/Outputs/clean_metadata/code_max_resolved_taxa.csv") %>%
+              mutate(hs6 = as.character(hs6)) 
+
+sciname_metadata <- read.csv("/Volumes/jgephart/ARTIS/Outputs/clean_metadata/sciname_metadata.csv") 
+
+```
+
+```{r join_data}
+# Load cleaned FAO production data
+prod <- prod %>% 
+  select("year", "iso3c", "sciname", 
+         "method" = "prod_method", "environment", 
+         "production_t" = "live_weight_t") %>%
+  group_by(year, iso3c, sciname, method, environment) %>%
+  summarise(production_t = sum(production_t, na.rm = TRUE)) %>%
+  ungroup()
+
+# Join production data to ARTIS
+artis <- artis %>%
+  filter(live_weight_t >= 0.1) %>%
+# FIX IT: Determine if this should be deleted. Production of only species exports may not be relevant
+  left_join(prod, by = c("year", "exporter_iso3c" = "iso3c", 
+                           "sciname", "method", "environment")) %>%
+  ungroup() 
+
+# Update artis data to lowest resolution by comparing code taxa_level and prod taxa_level
+artis <- artis %>%
+  # FIX IT: Change metadata to HSXX format and then remove this line
+  mutate(hs_version = as.integer(parse_number(hs_version))) %>%
+  left_join(code_max_resolved_taxa,
+            by = c("hs_version", "hs6", "sciname")) %>%
+  left_join(sciname_metadata, 
+            by = c("sciname" = "SciName")) %>%
+  # Leave any missing sciname_hs_modified as original sciname
+  mutate(sciname_hs_modified = case_when(
+    is.na(sciname_hs_modified) ~ sciname,
+    TRUE ~ sciname_hs_modified
+  ))
+
+# Remove data frames after merged with ARTIS
+rm(list = c("code_max_resolved_taxa", "sciname_metadata"))
+
+```
+
+# Figure 1: Increases in global export of blue foods
+
+## Figure 1 a: Exports of global marine and freshwater aquaculture and fishery products (t live weight equivalent) from 1996-2019
+
+
+## Figure 1 b: Percent of global marine and freshwater aquaculture and fishery production exported, excluding re-exports
+
+
+## Figure 1 c: Degree or measure of degree distribution by production method and environment
+
+
+# Figure 2: Trade patterns
+
+```{r SI_top_traders}
+total_country_exports <- artis %>% 
+  group_by(exporter_iso3c, method, environment) %>%
+  summarise(export_live_weight_t = sum(live_weight_t)/length(2015:2019)) %>%
+  mutate(export_live_weight_t = export_live_weight_t/1000000) %>%
+  rename("iso3c" = "exporter_iso3c")
+
+total_country_imports <- artis %>% 
+  group_by(importer_iso3c, method, environment) %>%
+  summarise(import_live_weight_t = sum(live_weight_t)/length(2015:2019)) %>%
+  mutate(import_live_weight_t = import_live_weight_t/1000000) %>%
+  rename("iso3c" = "importer_iso3c")
+
+total_country_trade <- total_country_exports %>%
+  full_join(total_country_imports, by = c("iso3c", "method", "environment")) %>%
+  mutate(trade_live_weight_t = export_live_weight_t + import_live_weight_t) %>%
+  ungroup() %>%
+  group_by(iso3c) %>%
+  mutate(total = sum(trade_live_weight_t)) %>%
+  ungroup() %>%
+  slice_max(n = 9*20, order_by = total) 
+
+total_net_import <- total_country_trade %>%
+  group_by(iso3c) %>%
+  summarise(export_live_weight_t = sum(export_live_weight_t),
+            import_live_weight_t = sum(import_live_weight_t)) %>%
+  mutate(net_import = import_live_weight_t - export_live_weight_t,) %>%
+  select(iso3c, net_import)
+
+total_country_trade %>% 
+  left_join(total_net_import, by = "iso3c") %>%
+  mutate(iso3c = fct_reorder(as.factor(iso3c), -net_import)) %>%
+  ggplot() +
+  geom_bar(aes(y = -1*export_live_weight_t, x = iso3c, fill = method), stat = "identity", position = "stack") +
+  geom_bar(aes(y = import_live_weight_t, x = iso3c, fill = method), stat = "identity", position = "stack") +
+  scale_fill_manual(values = method_colors) +
+  geom_line(aes(y = net_import, x = iso3c), group = 1) +
+  geom_hline(yintercept = 0) +
+  labs(x = "", y = "Trade (million t, live weight)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+
+```
+
+```{r top_imp_exp}
+# Top exporters, averaged over beginning and end time periods
+top_exp_1 <- artis %>% 
+  filter(year %in% 1996:2000) %>%
+  group_by(exporter_iso3c, method) %>%
+  summarise(live_weight_t = sum(live_weight_t)/length(1996:2000)) %>% 
+  ungroup() %>%
+  group_by(exporter_iso3c) %>%
+  mutate(total = sum(live_weight_t)) %>%
+  ungroup() %>%
+  mutate(exporter_iso3c = fct_reorder(as.factor(exporter_iso3c), total)) %>%
+  slice_max(n = 60, order_by = total) %>%
+  ggplot(aes(x = live_weight_t/1000000, y = exporter_iso3c, fill = method)) +
+  geom_bar(stat="identity", position = "stack") + 
+  scale_fill_manual(values = method_colors) +
+  lims(x = c(0, 10)) +
+  labs(x = "Seafood exports (million t, live weight)", y = "",
+       title = "Top 20 seafood \nexporters (1996-2000)", fill = "Production method") +
+  theme_minimal()
+
+top_exp_2 <- artis %>% 
+  filter(year %in% 2015:2019) %>%
+  group_by(exporter_iso3c, method) %>%
+  summarise(live_weight_t = sum(live_weight_t)/length(2015:2019)) %>% 
+  ungroup() %>%
+  group_by(exporter_iso3c) %>%
+  mutate(total = sum(live_weight_t)) %>%
+  ungroup() %>%
+  mutate(exporter_iso3c = fct_reorder(as.factor(exporter_iso3c), total)) %>%
+  slice_max(n = 60, order_by = total) %>%
+  ggplot(aes(x = live_weight_t/1000000, y = exporter_iso3c, fill = method)) +
+  geom_bar(stat="identity", position = "stack") + 
+  scale_fill_manual(values = method_colors) +
+  lims(x = c(0, 10)) +
+  labs(x = "Seafood exports (million t, live weight)", y = "",
+       title = "Top 20 seafood \nexporters (2015-2019)", fill = "Production method") +
+  theme_minimal()
+
+ggarrange(top_exp_1, top_exp_2, common.legend = TRUE)
+
+# Top importers, averaged over beginning and end time periods
+top_imp_1 <- artis %>% 
+  filter(year %in% 1996:2000) %>%
+  group_by(importer_iso3c, method) %>%
+  summarise(live_weight_t = sum(live_weight_t)/length(1996:2000)) %>% 
+  ungroup() %>%
+  group_by(importer_iso3c) %>%
+  mutate(total = sum(live_weight_t)) %>%
+  ungroup() %>%
+  mutate(importer_iso3c = fct_reorder(as.factor(importer_iso3c), total)) %>%
+  slice_max(n = 60, order_by = total) %>%
+  ggplot(aes(x = live_weight_t/1000000, y = importer_iso3c, fill = method)) +
+  geom_bar(stat="identity", position = "stack") + 
+  scale_fill_manual(values = method_colors) +
+  lims(x = c(0, 10)) +
+  labs(x = "Seafood imports (million t, live weight)", y = "",
+       title = "Top 20 seafood \nimporters (1996-2000)", fill = "Production method") +
+  theme_minimal()
+
+top_imp_2 <- artis %>% 
+  filter(year %in% 2015:2019) %>%
+  group_by(importer_iso3c, method) %>%
+  summarise(live_weight_t = sum(live_weight_t)/length(2015:2019)) %>% 
+  ungroup() %>%
+  group_by(importer_iso3c) %>%
+  mutate(total = sum(live_weight_t)) %>%
+  ungroup() %>%
+  mutate(importer_iso3c = fct_reorder(as.factor(importer_iso3c), total)) %>%
+  slice_max(n = 60, order_by = total) %>%
+  ggplot(aes(x = live_weight_t/1000000, y = importer_iso3c, fill = method)) +
+  geom_bar(stat="identity", position = "stack") + 
+  scale_fill_manual(values = method_colors) +
+  lims(x = c(0, 10)) +
+  labs(x = "Seafood imports (million t, live weight)", y = "",
+       title = "Top 20 seafood \nimporters (2015-2019)", fill = "Production method") +
+  theme_minimal()
+
+ggarrange(top_imp_1, top_imp_2, common.legend = TRUE)
+
+ggarrange(top_exp_2, top_imp_2, common.legend = TRUE)
+
+```
+
+```{r regional_bilateral_trends}
+artis_region <- artis %>%
+  mutate(importer_region = countrycode(importer_iso3c, origin = "iso3c", destination = "continent"),
+         exporter_region = countrycode(exporter_iso3c, origin = "iso3c", destination = "continent")) %>%
+  filter(!is.na(importer_region), !is.na(exporter_region)) %>%
+  group_by(year, exporter_region, importer_region) %>%
+  summarise(live_weight_t = sum(live_weight_t)) %>%
+  ungroup() %>%
+  mutate(exporter_importer = paste(exporter_region, " to ", importer_region, sep = ""))
+
+region_slopes <- artis_region %>%
+  split(.$exporter_importer) %>% 
+  map(~lm(live_weight_t~year, data = .x)) %>% 
+  map_df(broom::tidy, .id = 'exporter_importer') %>%
+  filter(term == 'year') %>%
+  select(exporter_importer, "slope" = "estimate")
+  
+artis_region <- artis_region %>%
+  left_join(region_slopes, by = "exporter_importer")
+
+```
+
+```{r region_trend_matrix, fig.height=6, fig.width=6}
+artis_region %>%
+  ggplot(aes(x = year, y = live_weight_t/1000000, color = slope/1000)) +
+  geom_line(size = 2) +
+  scale_color_gradient2(low = "#E24027", mid = "grey70", high = "#1B708F") +
+  labs(x = "", y = "Exports (million t)", color = "Ave. annual change in export \n(1000 t live weight)") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), 
+        legend.position = "bottom") +
+  facet_grid(rows = vars(exporter_region), cols = vars(importer_region), 
+             labeller = label_wrap_gen(width = 5))
+
+```
+
+# Figure 3: 
+
+```{r calculate_supply}
+exports <- artis %>%
+  group_by(year, exporter_iso3c, dom_source, sciname, CommonName, method, environment) %>%
+  summarise(live_weight_t = sum(live_weight_t)) %>%
+  mutate(dom_source = str_replace(dom_source, " ", "_")) %>%
+  pivot_wider(names_from = "dom_source", values_from = "live_weight_t")
+
+imports <- artis %>%
+  group_by(year, importer_iso3c, sciname, CommonName, method, environment) %>%
+  summarise(imports_live_weight_t = sum(live_weight_t))
+
+supply <- exports %>%
+  full_join(imports, by = c("year", "exporter_iso3c" = "importer_iso3c", 
+                            "sciname", "CommonName", "method", "environment")) %>%
+  full_join(prod, by = c("year", "exporter_iso3c" = "iso3c", 
+                          "sciname", "method", "environment")) 
+
+supply$foreign_export[is.na(supply$foreign_export)] <- 0
+supply$domestic_export[is.na(supply$domestic_export)] <- 0
+supply$error_export[is.na(supply$error_export)] <- 0
+supply$imports_live_weight_t[is.na(supply$imports_live_weight_t)] <- 0
+supply$production_t[is.na(supply$production_t)] <- 0
+
+supply <- supply %>%
+  mutate(supply = production_t + imports_live_weight_t - domestic_export - foreign_export - error_export,
+         supply_no_error = production_t + imports_live_weight_t - domestic_export - foreign_export, 
+         supply_domestic = production_t - domestic_export,
+         supply_foreign = imports_live_weight_t - foreign_export) %>%
+  rename("iso3c" = "exporter_iso3c") %>%
+  ungroup() %>%
+  mutate(supply_no_error = replace_na(supply_no_error, 0),
+         supply_domestic = replace_na(supply_domestic, 0),
+         supply_foreign = replace_na(supply_foreign, 0)) 
+
+```
+
+
+Foreign dependence trends
+Where does trade have a positive versus negative effect on per capita supply for capture versus aquaculture? 
+Does trade increase the diversity of supply and if so, where? 
+
+## Effect of trade on supply diversity
+
+```{r supply_diversity}
+# FIX IT: The new prod data is in here, so it doesn't merge correctly with the trade data (potentially leading to many negative supply values)
+
+# FIX IT: Make sure supply calc includes supply of non-traded species
+
+diversity <- supply %>%
+  # FIX IT: temporarily remove negative supply values
+  filter(supply_domestic > 0, supply_foreign > 0) %>%
+  group_by(iso3c, year, sciname) %>%
+  summarise(supply_no_error = sum(supply_no_error), 
+            supply_domestic = sum(supply_domestic),
+            supply_foreign = sum(supply_foreign),
+            production_t = sum(production_t), 
+            imports_live_weight_t = sum(imports_live_weight_t)) %>%
+  ungroup(sciname) %>%
+  mutate(shannon_supply_no_error = diversity(supply_no_error),
+         shannon_supply_domestic = diversity(supply_domestic),
+         shannon_supply_foreign = diversity(supply_foreign),
+         shannon_prod = diversity(production_t),
+         shannon_imports = diversity(imports_live_weight_t)) %>%
+  select(iso3c, year, shannon_supply_no_error,
+         shannon_supply_domestic, shannon_supply_foreign,
+         shannon_prod, shannon_imports) %>%
+  distinct() %>%
+  mutate(region = countrycode(iso3c, origin = "iso3c", destination = "region"))
+
+total_trade <- supply %>%
+  # FIX IT: temporarily remove negative supply values
+  filter(supply_domestic > 0, supply_foreign > 0) %>%
+  group_by(iso3c, year) %>%
+  summarise(supply_domestic = sum(supply_domestic),
+            supply_foreign = sum(supply_foreign),
+            production_t = sum(production_t), 
+            imports_live_weight_t = sum(imports_live_weight_t),
+            domestic_export = sum(domestic_export),
+            foreign_export = sum(foreign_export),
+            error_export = sum(error_export)) 
+
+diversity <- diversity %>%
+  left_join(total_trade, by = c("iso3c", "year"))
+
+# Compare diversity of foreign and domestic supply
+diversity %>%
+  filter(year == 2018, !is.na(region)) %>%
+  ggplot(aes(x = shannon_supply_domestic, y = shannon_supply_foreign, color = region)) +
+    geom_point() +
+    geom_abline(slope = 1, intercept = 0) +
+  labs(x = "Domestic supply diversity (Shannon index)", 
+       y = "Foreign supply diversity (Shannon index)") +
+    theme_minimal() 
+
+# Slope less than 1 means domestic diversity is higher than foreign-sourced diversity
+summary(lm(diversity$shannon_supply_foreign~diversity$shannon_supply_domestic))
+
+# Compare production and import diversity trends
+diversity %>%
+  filter(!is.na(region)) %>%
+  group_by(year, region) %>%
+  summarise(shannon_prod = mean(shannon_prod), 
+            shannon_imports = mean(shannon_imports)) %>%
+  ggplot(aes(x = year)) +
+  geom_line(aes(y = shannon_prod), color = "hotpink") +
+  geom_line(aes(y = shannon_imports), color = "darkgreen")  +
+  labs(x = "", y = "Shannon index (pink = prod; green = import)") +
+  theme_minimal() +
+  facet_wrap(~region)
+
+
+# Compare total imports and supply diversity
+diversity %>%
+  filter(year == 2018, !is.na(region)) %>%
+  ggplot(aes(x = imports_live_weight_t/1000000, y = shannon_supply_no_error, color = region)) +
+  geom_point() +
+  scale_x_log10() +
+  theme_minimal() +
+  labs(x = "Total imports (million t, live weight)",
+       y = "Supply diversity (Shannon index)") 
+
+
+diversity %>%
+  filter(!is.na(region)) %>%
+  ggplot(aes(x = imports_live_weight_t/1000000, y = shannon_supply_no_error)) +
+  geom_point() +
+  scale_x_log10() +
+  theme_minimal() +
+  labs(x = "Total imports (million t, live weight)",
+       y = "Supply diversity (Shannon index)") +
+  facet_wrap(~region)
+
+diversity %>%
+  mutate(dom_vs_foreign = case_when(
+    shannon_supply_domestic >= shannon_supply_foreign ~ "dom",
+    shannon_supply_domestic < shannon_supply_foreign ~ "foreign"
+  )) %>% 
+  group_by(dom_vs_foreign) %>%
+  tally()
+  
+
+```
+
+

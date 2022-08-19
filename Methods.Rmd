@@ -90,9 +90,16 @@ We solve the mass-balance problem for each country-year-HS version combination u
 
 ## Converting the product trade network to a species trade network
 
+###______________________________________________________________________________________###
+Old text
 To convert reported bilateral trade of seafood products to species trade flows, we first identify the mix of species going into each trade code. To do this, we first must reweight $X$ so it represents the proportion of each species in a given code rather than the proportion of production of a species going into each product form. To do this, we take each country's estimated $X$, multiply by  production, and divide by the column sums. 
 
-Next, we calculate the proportion of exports sourced from national production, imported and processed products, and from an unknown source (i.e., the error term). Since the mix of these sources cannot be derived from the mass balance equation alone, we calculate a range for the sourcing following Asche et al. (2022). To calculate the maximum exports from domestic production,  We apply the national reweighted $X$ to the exports from national production and the reweighted $X$ of trade partners (weighted based on import volume of each trade code) to import-sourced exports. Since the exports are of an unknown origin, we assign the most resolved common taxonomic name for the species falling within the code to the exports derived from the error term. [ADD EXAMPLE]
+Next, we calculate the proportion of exports sourced from national production, imported and processed products, and from an unknown source (i.e., the error term). Since the mix of these sources cannot be derived from the mass balance equation alone, we calculate a range for the sourcing following Asche et al. (2022). To calculate the maximum exports from domestic production,  We apply the national reweighted $X$ to the exports from national production and the reweighted $X$ of trade partners (weighted based on import volume of each trade code) to import-sourced exports. Since the exports are of an unknown origin, we assign the most resolved common taxonomic name for the species falling within the code to the exports derived from the error term. 
+###______________________________________________________________________________________###
+
+To convert bilateral trade data expressed as commodities into species flows, we must trace flows back to their source country to link the commodities with the appropriate species mix. To do this, we draw from multi-regional input-output methods and first construct a flow matrix $F$, with sectors representing all country-commodity combinations and the origin ("from") sector on the row and destination ("to") sector on the column. To construct $F$, we multiply the estimated conversion of products for each country $i$ ($W_i$) element wise by the vector of imports by country-commodity combination, expressed as live weight equivalents. This then represents the bilateral flow of product entering each country and remaining in its current form and being processed into a new form according to the appropriate estimated national $W$ matrix. 
+
+Our final demand vector is comprised of domestic production of each commodity ($X_i p_i$) plus imports of each commodity expressed as the final product form ($W_i g$) plus the estimated error export quantity ($\epsilon$). 
 
 ## Analysis implementation
 

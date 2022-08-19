@@ -1,7 +1,8 @@
 ---
 title: "Seafood globalization preliminary results"
 author: "Jessica Gephart"
-output: html_document
+output: 
+  pdf_document
 ---
 
 ```{r setup, include=FALSE}
@@ -16,6 +17,8 @@ library(kableExtra)
 library(DBI)
 library(janitor)
 library(viridis)
+library(broom)
+library(exploreARTIS)
 
 ```
 
@@ -32,21 +35,19 @@ con <- dbConnect(RPostgres::Postgres(),
 dbListTables(con)
 
 # Pull all ARTIS and production data
-artis <- dbGetQuery(con, 
-"SELECT * FROM snet 
-WHERE (snet_est = \'mid\') AND
-((\"year\" <= 2003 AND hs_version = \'HS96\') OR
-((\"year\" > 2003 AND \"year\" <= 2009) AND hs_version = \'HS02\') OR
-((\"year\" > 2009 AND \"year\" <= 2012) AND hs_version = \'HS07\') OR
-((\"year\" > 2012 AND \"year\" <= 2020) AND hs_version = \'HS12\'))")
+artis <- dbGetQuery(con, "SELECT * FROM snet")
 
 
 artis <- artis %>%
-  select(-record_id, -snet_est)
+  select(-record_id) %>%
+  # Remove 2020 for now
+  filter(year < 2020)
 
 prod <- dbGetQuery(con, "SELECT * FROM production")
 prod <- prod %>%
-  select(-record_id)
+  select(-record_id) %>%
+  # Remove 2020 for now
+  filter(year < 2020)
 
 # Close database connection
 dbDisconnect(con)
@@ -98,7 +99,7 @@ artis <- artis %>%
 # FIX IT: Determine if this should be deleted. Production of only species exports may not be relevant
   left_join(prod, by = c("year", "exporter_iso3c" = "iso3c", 
                            "sciname", "method", "environment")) %>%
-  ungroup()
+  ungroup() 
 
 # Update artis data to lowest resolution by comparing code taxa_level and prod taxa_level
 artis <- artis %>%
@@ -119,7 +120,7 @@ rm(list = c("code_max_resolved_taxa", "sciname_metadata"))
 
 ```
 
-# Trend in global seafood trade
+# Trends in global seafood trade
 
 ```{r global_total_trend}
 artis %>% 
@@ -130,11 +131,41 @@ artis %>%
   labs(x = "", y = "Seafood exports (million t, live weight)") +
   theme_minimal()
 
+artis_fmfo_ts <- artis %>% 
+  mutate(food_or_fmfo = case_when(
+    hs6 == "230120" ~ "fishmeal",
+    hs6 != "230120" ~ "nonfishmeal"
+  )) %>%
+  group_by(year, food_or_fmfo) %>%
+  summarise(live_weight_t = sum(live_weight_t, na.rm = TRUE)) 
+
+artis_fmfo_ts %>%
+  ggplot(aes(x = year, y = live_weight_t/1000000, fill = food_or_fmfo)) +
+  geom_area() +
+  scale_fill_manual(values = method_colors) +
+  labs(x = "", y = "Seafood exports (million t, live weight)", fill = "") +
+  theme_minimal()
+
+artis_fmfo_ts_summary <- artis_fmfo_ts %>%
+  pivot_wider(names_from = food_or_fmfo, values_from = live_weight_t) %>%
+  mutate(percent_fishmeal = 100*fishmeal/(fishmeal+nonfishmeal))
+
 total_1996 <- round(sum(artis %>% filter(year == 1996) %>% pull(live_weight_t))/1000000, 1)
 total_2019 <- round(sum(artis %>% filter(year == 2019) %>% pull(live_weight_t))/1000000, 1)
+
+total_capture_1996 <- round(sum(artis %>% filter(year == 1996, method == "capture") %>% pull(live_weight_t))/1000000, 1)
+total_capture_2019 <- round(sum(artis %>% filter(year == 2019, method == "capture") %>% pull(live_weight_t))/1000000, 1)
+
+total_aquaculture_1996 <- round(sum(artis %>% filter(year == 1996, method == "aquaculture") %>% pull(live_weight_t))/1000000, 1)
+total_aquaculture_2019 <- round(sum(artis %>% filter(year == 2019, method == "aquaculture") %>% pull(live_weight_t))/1000000, 1)
+
 ```
 
 Global seafood trade increased from `r total_1996` million t (live weight) in 1996 to `r total_2019` million t (live weight) in 2019, representing a `r round(100*((total_2019-total_1996)/total_1996),0)`% increase over that period.
+
+Global capture fishery trade increased from `r total_capture_1996` million t (live weight) in 1996 to `r total_capture_2019` million t (live weight) in 2019, representing a `r round(100*((total_capture_2019-total_capture_1996)/total_capture_1996),0)`% increase over that period. In 1996, capture fishery trade represented `r round(100*total_capture_1996/total_1996)`% of all seafood exports and by 2019 capture fishery exports represented `r round(100*total_capture_2019/total_2019)`% of all seafood exports. 
+
+Global aquaculture fishery trade increased from `r total_aquaculture_1996` million t (live weight) in 1996 to `r total_aquaculture_2019` million t (live weight) in 2019, representing a `r round(100*((total_aquaculture_2019-total_aquaculture_1996)/total_aquaculture_1996),0)`% increase over that period. In 1996, aquaculture fishery trade represented `r round(100*total_aquaculture_1996/total_1996)`% of all seafood exports and by 2019 capture fishery exports represented `r round(100*total_aquaculture_2019/total_2019)`% of all seafood exports. 
 
 ```{r global_species_pattern}
 n_species <- artis %>% 
@@ -275,6 +306,7 @@ kable(artis %>%
 
 ## Number of exporters by source
 kable(artis %>% 
+        filter(live_weight_t>10) %>%
         select(year, exporter_iso3c, method) %>%
         distinct() %>%
         group_by(year, method) %>%
@@ -422,26 +454,139 @@ ggarrange(top_imp_1, top_imp_2, common.legend = TRUE)
 
 ```
 
+```{r capture_aqua_sankey, eval = FALSE}
+artis %>% 
+  filter(method == "capture", year %in% 2015:2019) %>% 
+  plot_sankey(prop_flow_cutoff = 0.03)
+
+artis %>% 
+  filter(method == "aquaculture", year %in% 2015:2019) %>% 
+  plot_sankey(prop_flow_cutoff = 0.03)
+```
+
+
 ```{r regional_bilateral_trends}
 artis_region <- artis %>%
   mutate(importer_region = countrycode(importer_iso3c, origin = "iso3c", destination = "region"),
          exporter_region = countrycode(exporter_iso3c, origin = "iso3c", destination = "region")) %>%
+  filter(!is.na(importer_region), !is.na(exporter_region)) %>%
   group_by(year, exporter_region, importer_region) %>%
-  summarise(live_weight_t = sum(live_weight_t))
+  summarise(live_weight_t = sum(live_weight_t)) %>%
+  ungroup() %>%
+  mutate(exporter_importer = paste(exporter_region, " to ", importer_region, sep = ""))
+
+region_slopes <- artis_region %>%
+  split(.$exporter_importer) %>% 
+  map(~lm(live_weight_t~year, data = .x)) %>% 
+  map_df(broom::tidy, .id = 'exporter_importer') %>%
+  filter(term == 'year') %>%
+  select(exporter_importer, "slope" = "estimate")
   
-artis_region %>%
-  filter(!is.na(exporter_region), !is.na(importer_region)) %>%
-  ggplot(aes(x = year, y = live_weight_t/1000000)) +
-  geom_line() +
-  labs(x = "", y = "Exports (million t)") +
+artis_region <- artis_region %>%
+  left_join(region_slopes, by = "exporter_importer")
+```
+
+```{r region_trend_lollipop, fig.height=7, fig.width=5}
+region_slopes %>%
+  mutate(exporter_importer = fct_reorder(exporter_importer, slope)) %>%
+  ggplot(aes(x = slope/1000, y = exporter_importer, color = slope, fill = slope)) +
+  geom_segment(aes(xend = 0, yend = exporter_importer)) +
+  geom_point() +
+  scale_color_gradient2(low = "#E24027", mid = "grey70", high = "#1B708F") +
+  scale_fill_gradient2(low = "#E24027", mid = "grey70", high = "#1B708F") +
+  labs(y = "", x = "Ave. annual change in export (1000 t live weight)") +
   theme_bw() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-  facet_grid(exporter_region~importer_region, scales = "free",
+  theme(legend.position = "blank")
+
+```
+
+```{r region_trend_matrix, fig.height=7, fig.width=7}
+artis_region %>%
+  ggplot(aes(x = year, y = live_weight_t/1000000, color = slope/1000)) +
+  geom_line() +
+  scale_color_gradient2(low = "#E24027", mid = "grey70", high = "#1B708F") +
+  labs(x = "", y = "Exports (million t)", color = "Ave. annual change in export \n(1000 t live weight)") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), 
+        legend.position = "bottom") +
+  facet_grid(rows = vars(exporter_region), cols = vars(importer_region), scales = "free",
              labeller = label_wrap_gen(width = 5))
 
 ```
 
-```{r top_bilateral_flows}
+```{r region_trend_heatmap}
+region_slopes %>%
+  separate(exporter_importer, into = c("exporter", "importer"), sep = " to ") %>% 
+  ggplot(aes(x = exporter, y = importer, fill = slope/1000)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "#E24027", mid = "grey90", high = "#1B708F") +
+  labs(x = "Exporting region", y = "Importing region", fill = "Ave. annual change in export \n(1000 t live weight)") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), 
+        legend.position = "bottom")
+```
+
+
+```{r summarize_region_slopes}
+kable(region_slopes %>%
+  separate(exporter_importer, into = c("exporter", "importer"), sep = " to ") %>% 
+  mutate(slope_dir = case_when(
+    slope > 0 ~ 1, 
+    slope < 0 ~ 0
+  )) %>% 
+  group_by(exporter) %>%
+  summarise(total_increases = sum(slope_dir)) %>%
+  arrange(desc(total_increases)), col.names = c("Exporting region", "Number of increases"))
+
+```
+
+```{r econ_group_trends}
+# LCD countries according to UN (https://www.un.org/development/desa/dpad/least-developed-country-category/ldcs-at-a-glance.html)
+LCD_countries <- c("Afghanistan", "Angola", "Bangladesh", "Benin", "Bhutan", "Burkina Faso", "Burundi", "Cambodia", "Central African Republic", "Chad", "Comoros", "Democratic Republic of the Congo", "Djibouti", "Eritrea", "Ethiopia", "Gambia", "Guinea", "Guinea-Bissau", "Haiti", "Kiribati", "Lao People’s Dem. Republic", "Lesotho", "Liberia", "Madagascar", "Malawi", "Mali", "Mauritania", "Mozambique", "Myanmar", "Nepal", "Niger", "Rwanda", "Sao Tome and Principe", "Senegal", "Sierra Leone", "Solomon Islands", "Somalia", "South Sudan", "Sudan", "Timor-Leste", "Togo", "Tuvalu", "Uganda", "United Republic of Tanzania", "Yemen", "Zambia")
+
+LCD_countries <- countrycode(LCD_countries, origin = "country.name", destination = "iso3c")
+
+artis_lcd <- artis %>%
+  mutate(
+    importer_region = case_when(
+    (importer_iso3c %in% LCD_countries) ~ "LCD",
+    !(importer_iso3c %in% LCD_countries) ~ "non-LCD"),
+     exporter_region = case_when(
+    (exporter_iso3c %in% LCD_countries) ~ "LCD",
+    !(exporter_iso3c %in% LCD_countries) ~ "non-LCD")) %>%
+  group_by(year, exporter_region, importer_region, method) %>%
+  summarise(live_weight_t = sum(live_weight_t))
+
+artis_lcd %>%
+  ggplot(aes(x = year, y = live_weight_t/1000000, fill = method)) +
+  geom_area() +
+  scale_fill_manual(values = method_colors) +
+  labs(x = "", y = "Exports (million t)") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  facet_grid(rows = vars(exporter_region), cols = vars(importer_region))
+
+artis_lcd %>% 
+  group_by(importer_region, year, method) %>%
+  summarise(total_imports = sum(live_weight_t)) %>%
+  rename("region" = "importer_region") %>%
+  left_join(artis_lcd %>% 
+              group_by(exporter_region, year, method) %>%
+              summarise(total_exports = sum(live_weight_t)) %>%
+              rename("region" = "exporter_region"),
+            by = c("year", "region", "method")) %>%
+  filter(region == "LCD") %>%
+  mutate(net_export = total_exports - total_imports) %>%
+  ggplot(aes(x = year, y = net_export, color = method)) +
+  scale_color_manual(values = method_colors) +
+  geom_line() +
+  labs(x = "", y = "Net export (t, live weight)") +
+  ylim(c(0, 3100000)) +
+  theme_bw()
+```
+
+
+```{r top_bilateral_flows, fig.height=4, fig.width=7}
 top_flows_1 <- artis %>%
   filter(year %in% 1996:2000) %>% 
   group_by(exporter_iso3c, importer_iso3c) %>%
@@ -483,6 +628,18 @@ ggarrange(top_flows_1, top_flows_2, nrow = 1)
 ```
 
 
+```{r country_bilateral_trends, eval=FALSE}
+
+country_slopes <- artis %>%
+  mutate(exporter_importer = paste(exporter_iso3c, " to ", importer_iso3c, sep = "")) %>%
+  split(.$exporter_importer) %>% 
+  map(~lm(live_weight_t~year, data = .x)) %>% 
+  map_df(broom::tidy, .id = 'exporter_importer') %>%
+  filter(term == 'year') %>%
+  select(exporter_importer, "slope" = "estimate")
+  
+```
+
 # Exports from domestic, imported and unknown sources
 
 ```{r exports_by_source}
@@ -514,8 +671,18 @@ kable(artis %>%
         select(year, dom_source, percent) %>% 
         pivot_wider(names_from = dom_source, values_from = percent),
       caption = "Percent of exports by export source")
+
+total_domestic_1996 <- round(sum(artis %>% filter(year == 1996, dom_source == "domestic export") %>% pull(live_weight_t))/1000000, 1)
+total_domestic_2019 <- round(sum(artis %>% filter(year == 2019, dom_source == "domestic export") %>% pull(live_weight_t))/1000000, 1)
+
+total_foreign_1996 <- round(sum(artis %>% filter(year == 1996, dom_source == "foreign export") %>% pull(live_weight_t))/1000000, 1)
+total_foreign_2019 <- round(sum(artis %>% filter(year == 2019, dom_source == "foreign export") %>% pull(live_weight_t))/1000000, 1)
+
 ```
 
+Global domestic exports increased from `r total_domestic_1996` million t (live weight) in 1996 to `r total_domestic_2019` million t (live weight) in 2019, representing a `r round(100*((total_domestic_2019-total_domestic_1996)/total_domestic_1996),0)`% increase over that period. In 1996, domestic exports represented `r round(100*total_domestic_1996/total_1996)`% of all  exports and by 2019 domestic exports represented `r round(100*total_domestic_2019/total_2019)`% of all seafood exports. 
+
+Global foreign (i.e., imported and re-exported) exports increased from `r total_foreign_1996` million t (live weight) in 1996 to `r total_foreign_2019` million t (live weight) in 2019, representing a `r round(100*((total_foreign_2019-total_foreign_1996)/total_foreign_1996),0)`% increase over that period. In 1996, foreign exports represented `r round(100*total_foreign_1996/total_1996)`% of all  exports and by 2019 foreign exports represented `r round(100*total_foreign_2019/total_2019)`% of all seafood exports. 
 
 # How has foreign dependence evolved over time? 
 
@@ -566,7 +733,7 @@ kable(artis %>%
 
 
 
-```{r exports_percent_by_species}
+```{r exports_percent_by_species, fig.width=5, fig.height=7}
 prod_1 <- artis %>%
   filter(dom_source == "domestic export", 
          year %in% 1996:2000) %>%
@@ -723,7 +890,7 @@ supply <- supply %>%
   ungroup() %>%
   mutate(supply_no_error = replace_na(supply_no_error, 0),
          supply_domestic = replace_na(supply_domestic, 0),
-         supply_foreign = replace_na(supply_foreign, 0))
+         supply_foreign = replace_na(supply_foreign, 0)) 
 
 ```
 
@@ -754,9 +921,12 @@ supply %>%
   ggplot() +
   geom_line(aes(x = year, y = supply_domestic), color = "#1B708F") +
   geom_line(aes(x = year, y = supply_foreign), color = "#E24027") +
-  labs(x = "", y = "Percent of supply (blue = domestic; red = domestic)") +
+  labs(x = "", y = "Percent of supply (blue = domestic; red = foreign)") +
   facet_wrap(~iso3c) +
   theme_bw()
+```
+
+```{r supply_source_by_region}
 
 supply %>% 
   mutate(region = countrycode(iso3c, origin = "iso3c", destination = "region")) %>%
@@ -769,7 +939,7 @@ supply %>%
   ggplot() +
   geom_line(aes(x = year, y = supply_domestic), color = "#1B708F") +
   geom_line(aes(x = year, y = supply_foreign), color = "#E24027") +
-  labs(x = "", y = "Percent of supply (blue = domestic; red = domestic)") +
+  labs(x = "", y = "Percent of supply (blue = domestic; red = foreign)") +
   facet_wrap(~region) +
   theme_bw()
 
@@ -802,7 +972,7 @@ supply_species %>%
   ggplot() +
   geom_line(aes(x = year, y = percent_domestic), color = "#1B708F") + 
   geom_line(aes(x = year, y = percent_foreign), color = "#E24027") +
-  labs(x = "", y = "Percent of supply (blue = domestic; red = domestic)") +
+  labs(x = "", y = "Percent of supply (blue = domestic; red = foreign)") +
   facet_wrap(~CommonName) +
   theme_bw()
 
@@ -810,7 +980,7 @@ supply_species %>%
 
 # Trends in estimated error
 
-```{r explore_country_error}
+```{r explore_country_error, eval=FALSE}
 # Plot time series of species with largest volume error exports
 supply %>%
   group_by(year, iso3c) %>%
@@ -850,7 +1020,7 @@ supply %>%
 
 ```
 
-```{r explore_species_error}
+```{r explore_species_error, eval=FALSE}
 # Plot time series of species with largest volume error exports
 supply %>%
   group_by(year, sciname, CommonName) %>%
