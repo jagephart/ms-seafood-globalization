@@ -221,6 +221,7 @@ Global capture fishery trade increased from `r total_capture_1996` million t (li
 Global aquaculture fishery trade increased from `r total_aquaculture_1996` million t (live weight) in 1996 to `r total_aquaculture_2019` million t (live weight) in 2019, representing a `r round(100*((total_aquaculture_2019-total_aquaculture_1996)/total_aquaculture_1996),0)`% increase over that period. In 1996, aquaculture fishery trade represented `r round(100*total_aquaculture_1996/total_1996)`% of all seafood exports and by 2019 capture fishery exports represented `r round(100*total_aquaculture_2019/total_2019)`% of all seafood exports. 
 
 ```{r covid_effect}
+<<<<<<< HEAD
 # artis %>% 
 #   filter(year %in% 2019:2020) %>% 
 #   group_by(year, habitat_method) %>% 
@@ -228,6 +229,15 @@ Global aquaculture fishery trade increased from `r total_aquaculture_1996` milli
 #   pivot_wider(names_from = year, values_from = live_weight_t, names_prefix = "year") %>% 
 #   mutate(change = (year2019-year2020)/year2020) %>% 
 #   arrange(desc(change))
+=======
+artis %>% 
+  filter(year %in% 2019:2020) %>% 
+  group_by(year, habitat_method) %>% 
+  summarise(live_weight_t = sum(live_weight_t)) %>% 
+  pivot_wider(names_from = year, values_from = live_weight_t, names_prefix = "year", values_fill = 0) %>% 
+  mutate(change = (year2019-year2020)/year2020) %>% 
+  arrange(desc(change))
+>>>>>>> e1c663babf7d308c8f7a114e39f04496f2c95b0a
 ```
 
 
@@ -747,7 +757,7 @@ bilateral_habitat_method_summary %>%
     year %in% 2016:2020 ~ "end")) %>%
   group_by(year_group, exporter_region, importer_region) %>% 
   summarise(live_weight_t = sum(live_weight_t)) %>%
-  pivot_wider(names_from = year_group, values_from = live_weight_t) %>% 
+  pivot_wider(names_from = year_group, values_from = live_weight_t, values_fill = 0) %>% 
   mutate(change = end-beginning,
          from_to = paste(exporter_region, " to ", importer_region), 
          intraregion = case_when(
@@ -765,32 +775,39 @@ bilateral_habitat_method_summary %>%
   theme_minimal() +
   theme(legend.position = "bottom")
 
-# Changes in trade flow percents
-bilateral_habitat_method_summary %>% 
+# Calculate percent of pairs with increased trade flows
+bilateral_flow_change <- bilateral_habitat_method_summary %>% 
   filter(exporter_region != "Other nei", importer_region != "Other nei",
          year %in% c(1996:2000, 2016:2020)) %>%
   mutate(year_group = case_when(
     year %in% 1996:2000 ~ "beginning", 
     year %in% 2016:2020 ~ "end")) %>%
-  group_by(year_group, exporter_region, importer_region) %>% 
+  group_by(year_group, exporter_iso3c, importer_iso3c) %>% 
   summarise(live_weight_t = sum(live_weight_t)) %>%
-  pivot_wider(names_from = year_group, values_from = live_weight_t) %>% 
-  mutate(change = 100*(end-beginning)/beginning,
-         from_to = paste(exporter_region, " to ", importer_region), 
-         intraregion = case_when(
-           exporter_region == importer_region ~ "intraregional trade",
-           exporter_region != importer_region ~ "interegional trade"
-         )) %>% 
-  arrange(desc(change)) %>% 
-  ungroup() %>%
-  ggplot(aes(x = change, y = reorder(from_to, change), color = intraregion)) +
-  geom_segment(aes(x=0, xend=change, y=reorder(from_to, change), yend=reorder(from_to, change), color = intraregion)) +
-  geom_point(size=3) +
-  scale_y_reordered() +
-  scale_color_manual(values = habitat_source_colors[c(1,4)]) +
-  labs(y = "", x = "Percent change", color = "") +
-  theme_minimal() +
-  theme(legend.position = "bottom")
+  pivot_wider(names_from = year_group, values_from = live_weight_t, values_fill = 0) %>% 
+  mutate(change = end-beginning) %>%
+  arrange(desc(change))
+
+
+percent_flow_increases <- 100*(nrow(bilateral_flow_change %>% filter(change > 0)))/nrow(bilateral_flow_change)
+
+# Calculate percent of pairs with increased trade flows by production method and habitat
+bilateral_flow_change_method <- bilateral_habitat_method_summary %>% 
+  filter(exporter_region != "Other nei", importer_region != "Other nei",
+         year %in% c(1996:2000, 2016:2020)) %>%
+  mutate(year_group = case_when(
+    year %in% 1996:2000 ~ "beginning", 
+    year %in% 2016:2020 ~ "end")) %>%
+  group_by(year_group, exporter_iso3c, importer_iso3c, habitat_method) %>% 
+  summarise(live_weight_t = sum(live_weight_t)) %>%
+  pivot_wider(names_from = year_group, values_from = live_weight_t, values_fill = 0) %>% 
+  mutate(change = end-beginning) %>%
+  arrange(desc(change))
+
+
+percent_flow_increases_marine_capture <- 100*(nrow(bilateral_flow_change_method %>% 
+                                                     filter(habitat_method == "marine capture",
+                                                            change > 0)))/nrow(bilateral_flow_change)
   
 ```
 
@@ -923,7 +940,7 @@ The top importers, exporters, and bilateral flows vary by production method, und
 
 Intraregional trade is generally stronger due to shorter transport distances, historical ties, and established regional trade agreements (REF). This pattern generally holds for blue food trade as intraregional trade is either the highest or second highest for all regions other than Oceania and South America. [Suggestions for discussion points around Oceania and South America exports?] Regional trade strengthened within Asia, Europe and Africa, where intraregional trade increased more than interegional trade. 
 
-Since 1996, nearly all regional trade pairs increased, other than South America. The largest increases occurred for X, Y and Z. At the country level, X% of trade pairs increased, with the most increases for marine/inland aquaculture/capture. The declining exports from South America mirror declining marine catch over this period. [Suggestions for discussion points and context related to this?]. 
+Since 1996, nearly all regional trade pairs increased, other than South America to Europe and Asia and within North America. The largest average annual growth increases occurred for trade within Asia, within Europe and between Europe and Asia. At the country level, `r round(percent_flow_increases, 1)`% of trade pairs increased, with the most increases for marine/inland aquaculture/capture. The declining exports from South America mirror declining marine catch over this period. [Suggestions for discussion points and context related to this?]. 
 
 Least developed countries are net importers of blue foods [true of all production methods?] and this pattern has increased X% since 1996 (Fig SX - need to create this figure). Net imports of blue foods has previously been identified as a threat to nutrition security in these nations as [check ref for reasoning here] (REF). High net imports is also associated with risk of receiving shocks propagated through trade (Gephart et al. 2016).
 
