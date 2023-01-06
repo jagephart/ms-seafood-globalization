@@ -40,7 +40,16 @@ vignettes/*.pdf
 
 # Folders
 Archived_code/
+outputs/
 
 # pdf and html files
 *.pdf
 *.html
+
+# Images
+*.png
+
+# Powerpoint
+*.pptx
+
+

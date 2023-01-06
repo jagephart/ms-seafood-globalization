@@ -20,6 +20,7 @@ library(viridis)
 library(broom)
 library(exploreARTIS)
 library(vegan)
+library(tidytext)
 ```
 
 ```{r load_database_data}
@@ -39,18 +40,21 @@ artis <- dbGetQuery(con, "SELECT * FROM snet")
 
 
 artis <- artis %>%
-  select(-record_id) %>%
-  # Remove 2020 for now
-  filter(year < 2020)
+  select(-record_id) 
 
 prod <- dbGetQuery(con, "SELECT * FROM production")
 prod <- prod %>%
-  select(-record_id) %>%
-  # Remove 2020 for now
-  filter(year < 2020)
+  select(-record_id) 
 
 country_metadata <- dbGetQuery(con, "SELECT * FROM countries")
 country_metadata <- country_metadata %>%
+  select(-record_id)
+
+code_max_resolved_taxa <- dbGetQuery(con, "SELECT * FROM code_max_resolved_taxa") %>%
+              mutate(hs6 = as.character(hs6)) %>%
+  select(-record_id)
+
+sciname_metadata <- dbGetQuery(con, "SELECT * FROM sciname") %>%
   select(-record_id)
 
 # Close database connection
@@ -65,7 +69,6 @@ date_nodash <- "20220926"
 date_dash <- "2022-09-26"
 
 # Set directories 
-model_inputs_dir <- "/Volumes/jgephart/ARTIS/Outputs/model_inputs_20220926"
 outdir <- "/Volumes/jgephart/ARTIS/Outputs/ms_seafood_globalization"
 
 # Set color palettes
@@ -94,10 +97,6 @@ region_colors <- c(
 ```
 
 ```{r load_drive_data}
-code_max_resolved_taxa <- read.csv("/Volumes/jgephart/ARTIS/Outputs/clean_metadata/code_max_resolved_taxa.csv") %>%
-              mutate(hs6 = as.character(hs6)) 
-
-sciname_metadata <- read.csv("/Volumes/jgephart/ARTIS/Outputs/clean_metadata/sciname_metadata.csv") 
 
 pop <- read.csv("/Volumes/jgephart/ARTIS/Outputs/clean_metadata/fao_annual_pop.csv") %>% 
   left_join(country_metadata, by = c("iso3c")) %>%
@@ -106,7 +105,7 @@ pop <- read.csv("/Volumes/jgephart/ARTIS/Outputs/clean_metadata/fao_annual_pop.c
 ```
 
 ```{r join_data}
-# Load cleaned FAO production data
+# Summarize cleaned FAO production data
 prod <- prod %>% 
   select("year", "iso3c", "sciname", 
          "method", "habitat", 
@@ -130,8 +129,6 @@ artis <- artis %>%
 
 # Update artis data to lowest resolution by comparing code taxa_level and prod taxa_level
 artis <- artis %>%
-  # FIX IT: Change metadata to HSXX format and then remove this line
-  mutate(hs_version = as.integer(parse_number(hs_version))) %>%
   left_join(code_max_resolved_taxa,
             by = c("hs_version", "hs6", "sciname")) %>%
   left_join(sciname_metadata, 
@@ -173,7 +170,7 @@ global_export_by_source <- artis %>%
 
 write.csv(global_export_by_source, "outputs/global_export_by_source.csv", row.names = FALSE)
 
-global_export_by_source <- global_export_by_source %>%
+fig1a <- global_export_by_source %>%
   group_by(year, habitat_method) %>%
   summarise(live_weight_t = sum(live_weight_t)) %>%
   ggplot(aes(x = year, y = live_weight_t/1000000, fill = habitat_method)) +
@@ -205,40 +202,39 @@ dom_export_by_source <- artis %>%
   group_by(year, habitat_method, environment) %>%
   summarise(dom_live_weight_t = sum(live_weight_t)) 
   
-
-# One attempt to include unknown - would probably need to revisit this (perhaps by country, though that would ignore the possibility of it being sourced from elsewhere)
-
-# unknown_habitat_export<- artis %>% 
-#   filter(dom_source == "error export", environment == "unknown") %>%
-#   group_by(year) %>%
-#   summarise(unknown_habitat_live_weight_t = sum(live_weight_t)) 
-# 
-# unknown_method_export<- artis %>% 
-#   filter(dom_source == "error export", environment != "unknown") %>%
-#   group_by(year, environment) %>%
-#   summarise(unknown_method_live_weight_t = sum(live_weight_t)) 
-
-# dom_export_by_source %>%
-#   left_join(unknown_habitat_export, by = c("year")) %>%
-#   left_join(unknown_method_export, by = c("year", "environment")) %>%
-#   left_join(prod_by_source, by = c("year", "habitat_method")) %>% 
-#   mutate(unknown_method_live_weight_t = ifelse(is.na(unknown_method_live_weight_t), 0, unknown_method_live_weight_t)) %>%
-#   mutate(percent_export_lower = 100*dom_live_weight_t/production_t,
-#          percent_export_upper = 100*(dom_live_weight_t + unknown_habitat_live_weight_t + unknown_method_live_weight_t)/production_t) %>%
-#   ggplot(aes(x = year, color = habitat_method)) +
-#   geom_line(aes(y = percent_export_lower)) +
-#   geom_line(aes(y = percent_export_upper)) +
-#   scale_color_manual(values = habitat_source_colors) +
-#   labs(y = "Percent of global production exported", x = "") +
-#   facet_wrap(~habitat_method) +
-#   theme_bw() +
-#   theme(legend.position = "none")
-
 percent_export_by_source <- dom_export_by_source %>%
   left_join(prod_by_source, by = c("year", "habitat_method")) %>% 
-  mutate(percent_export = 100*dom_live_weight_t/production_t) %>%
-  ggplot(aes(x = year, y = percent_export, color = habitat_method)) +
-  geom_line() +
+  mutate(percent_export = 100*dom_live_weight_t/production_t) 
+
+write.csv(percent_export_by_source, "outputs/percent_export_by_source_summary.csv", row.names = FALSE)
+
+percent_export_total <- dom_export_by_source %>%
+  left_join(prod_by_source, by = c("year", "habitat_method")) %>% 
+  group_by(year) %>% 
+  summarise(dom_live_weight_t = sum(dom_live_weight_t), 
+            production_t = sum(production_t)) %>%
+  mutate(percent_export = 100*dom_live_weight_t/production_t) %>% 
+  mutate(calc_type = "domestic exports") %>% 
+  select(year, percent_export, calc_type)
+
+percent_export_total_all_source <- artis %>% 
+  group_by(year) %>% 
+  summarise(live_weight_t = sum(live_weight_t)) %>%
+  left_join(prod_by_source %>% 
+              group_by(year) %>% 
+              summarise(production_t = sum(production_t)), 
+            by = c("year")) %>% 
+  mutate(percent_export = 100*live_weight_t/production_t) %>% 
+  mutate(calc_type = "all export sources") %>% 
+  select(year, percent_export, calc_type)
+
+percent_export_total <- percent_export_total %>%
+  bind_rows(percent_export_total_all_source)
+
+write.csv(percent_export_total, "outputs/percent_export_total_summary.csv", row.names = FALSE)
+
+fig1b <- ggplot() +
+  geom_line(data = percent_export_by_source, aes(x = year, y = percent_export, color = habitat_method)) +
   scale_color_manual(values = habitat_source_colors) +
   labs(y = "% production exported", x = "", color = "Source") +
   theme_bw() 
@@ -281,7 +277,7 @@ habitat_method_degree_summary <-  artis %>%
 
 write.csv(habitat_method_degree_summary, "outputs/habitat_method_degree_summary.csv", row.names = FALSE)
 
-out_degree <- artis %>% 
+fig1c_out_degree <- artis %>% 
   filter(habitat_method != "unknown") %>%
   select(year, exporter_iso3c, importer_iso3c, habitat_method) %>%
   distinct() %>%
@@ -295,7 +291,7 @@ out_degree <- artis %>%
   theme_bw()
 
 
-in_degree <- artis %>% 
+fig1c_in_degree <- artis %>% 
   filter(habitat_method != "unknown") %>%
   select(year, exporter_iso3c, importer_iso3c, habitat_method) %>%
   distinct() %>%
@@ -311,266 +307,290 @@ in_degree <- artis %>%
 ```
 
 ```{r fig1, fig.height = 3, fig.width = 4.5}
-ggarrange(global_export_by_source, 
-          ggarrange(percent_export_by_source, 
-                    out_degree, 
-                    ncol = 2, 
+png("outputs/fig1.png")
+ggarrange(fig1a,
+          ggarrange(fig1b,
+                    fig1c_out_degree,
+                    ncol = 2, nrow = 1,
                     legend = "none",
-                    labels = c("b", "c")), 
+                    labels = c("b", "c")),
           common.legend = TRUE, legend = "bottom",
-          ncol = 1, labels = c("a", ""))
+          ncol = 1, nrow = 2, labels = c("a", ""))
 
+dev.off()
 ```
 
 
 # Figure 2: Trade patterns
 
 ```{r SI_top_capture_aqua_imp_exp, fig.height=4, fig.width=4}
-
 # Summarize total imports and exports by habitat and environment
 bilateral_habitat_method_summary <- artis %>%
+  # Remove if we decide to leave FMFO in
+  filter(hs6 != "230120") %>%
   group_by(year, exporter_iso3c, exporter_region, importer_iso3c, importer_region, habitat_method) %>%
   summarise(live_weight_t = sum(live_weight_t)) 
   
 write.csv(bilateral_habitat_method_summary, "outputs/bilateral_habitat_method_summary.csv", row.names = FALSE)
 
-# Top exporters, averaged over beginning and end time periods
-top_exp_1 <- artis %>% 
-  filter(year %in% 1996:2000) %>%
-  group_by(exporter_iso3c, method) %>%
-  summarise(live_weight_t = sum(live_weight_t)/length(1996:2000)) %>% 
-  ungroup() %>%
-  group_by(exporter_iso3c) %>%
-  mutate(total = sum(live_weight_t)) %>%
-  ungroup() %>%
-  mutate(exporter_iso3c = fct_reorder(as.factor(exporter_iso3c), total)) %>%
-  slice_max(n = 60, order_by = total) %>%
-  ggplot(aes(x = live_weight_t/1000000, y = exporter_iso3c, fill = method)) +
-  geom_bar(stat="identity", position = "stack") + 
-  scale_fill_manual(values = method_colors) +
-  lims(x = c(0, 10)) +
-  labs(x = "Seafood exports (million t, live weight)", y = "",
-       title = "Top 20 seafood \nexporters (1996-2000)", fill = "Production method") +
-  theme_minimal()
+top_traders_recent <- bilateral_habitat_method_summary %>% 
+  filter(year %in% 2016:2020, habitat_method != "unknown") %>%
+  group_by(importer_iso3c, exporter_iso3c, habitat_method) %>%
+  summarise(live_weight_t = sum(live_weight_t)/length(2016:2020)) 
 
-top_exp_2 <- artis %>% 
-  filter(year %in% 2015:2019) %>%
-  group_by(exporter_iso3c, method) %>%
-  summarise(live_weight_t = sum(live_weight_t)/length(2015:2019)) %>% 
+top_importers_recent <- top_traders_recent %>%
+  group_by(importer_iso3c, habitat_method) %>%
+  summarise(live_weight_t = sum(live_weight_t)) %>%
+  group_by(habitat_method) %>%
+  slice_max(n = 10, order_by = live_weight_t) %>%
   ungroup() %>%
-  group_by(exporter_iso3c) %>%
-  mutate(total = sum(live_weight_t)) %>%
+  group_by(habitat_method) %>%
+  mutate(ranking = rank(live_weight_t)) %>%
   ungroup() %>%
-  mutate(exporter_iso3c = fct_reorder(as.factor(exporter_iso3c), total)) %>%
-  slice_max(n = 60, order_by = total) %>%
-  ggplot(aes(x = live_weight_t/1000000, y = exporter_iso3c, fill = method)) +
-  geom_bar(stat="identity", position = "stack") + 
-  scale_fill_manual(values = method_colors) +
-  lims(x = c(0, 10)) +
-  labs(x = "Seafood exports (million t, live weight)", y = "",
-       title = "Top 20 seafood \nexporters (2015-2019)", fill = "Production method") +
-  theme_minimal()
+  mutate(importer_iso3c = reorder_within(importer_iso3c, ranking, habitat_method)) %>%
+  ggplot(aes(x = live_weight_t/1000000, y = importer_iso3c, fill = habitat_method)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = habitat_source_colors) +
+  scale_y_reordered() +
+  labs(y = "", x = "Live weight (million t)") +
+  facet_wrap(~habitat_method, ncol = 1, scales = "free_y") +
+  theme_minimal() +
+  theme(legend.position = "none")
 
-ggarrange(top_exp_1, top_exp_2, common.legend = TRUE)
 
-# Top importers, averaged over beginning and end time periods
-top_imp_1 <- artis %>% 
-  filter(year %in% 1996:2000) %>%
-  group_by(importer_iso3c, method) %>%
-  summarise(live_weight_t = sum(live_weight_t)/length(1996:2000)) %>% 
+top_exporters_recent <- top_traders_recent %>%
+  group_by(exporter_iso3c, habitat_method) %>%
+  summarise(live_weight_t = sum(live_weight_t)) %>%
+  group_by(habitat_method) %>%
+  slice_max(n = 10, order_by = live_weight_t) %>%
   ungroup() %>%
-  group_by(importer_iso3c) %>%
-  mutate(total = sum(live_weight_t)) %>%
+  group_by(habitat_method) %>%
+  mutate(ranking = rank(live_weight_t)) %>%
   ungroup() %>%
-  mutate(importer_iso3c = fct_reorder(as.factor(importer_iso3c), total)) %>%
-  slice_max(n = 60, order_by = total) %>%
-  ggplot(aes(x = live_weight_t/1000000, y = importer_iso3c, fill = method)) +
-  geom_bar(stat="identity", position = "stack") + 
-  scale_fill_manual(values = method_colors) +
-  lims(x = c(0, 10)) +
-  labs(x = "Seafood imports (million t, live weight)", y = "",
-       title = "Top 20 seafood \nimporters (1996-2000)", fill = "Production method") +
-  theme_minimal()
+  mutate(exporter_iso3c = reorder_within(exporter_iso3c, ranking, habitat_method)) %>%
+  ggplot(aes(x = live_weight_t/1000000, y = exporter_iso3c, fill = habitat_method)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = habitat_source_colors) +
+  scale_y_reordered() +
+  labs(y = "", x = "Live weight (million t)") +
+  facet_wrap(~habitat_method, ncol = 1, scales = "free_y") +
+  theme_minimal() +
+  theme(legend.position = "none")
 
-top_imp_2 <- artis %>% 
-  filter(year %in% 2015:2019) %>%
-  group_by(importer_iso3c, method) %>%
-  summarise(live_weight_t = sum(live_weight_t)/length(2015:2019)) %>% 
-  ungroup() %>%
-  group_by(importer_iso3c) %>%
-  mutate(total = sum(live_weight_t)) %>%
-  ungroup() %>%
-  mutate(importer_iso3c = fct_reorder(as.factor(importer_iso3c), total)) %>%
-  slice_max(n = 60, order_by = total) %>%
-  ggplot(aes(x = live_weight_t/1000000, y = importer_iso3c, fill = method)) +
-  geom_bar(stat="identity", position = "stack") + 
-  scale_fill_manual(values = method_colors) +
-  lims(x = c(0, 10)) +
-  labs(x = "Seafood imports (million t, live weight)", y = "",
-       title = "Top 20 seafood \nimporters (2015-2019)", fill = "Production method") +
-  theme_minimal()
+ggarrange(top_exporters_recent, top_importers_recent, ncol = 2, labels = c("Export", "Import"))
 
-ggarrange(top_imp_1, top_imp_2, common.legend = TRUE)
 
-ggarrange(top_exp_2, top_imp_2, common.legend = TRUE)
+top_traders_past <- bilateral_habitat_method_summary %>% 
+  filter(year %in% 1996:2000, habitat_method != "unknown") %>%
+  group_by(importer_iso3c, exporter_iso3c, habitat_method) %>%
+  summarise(live_weight_t = sum(live_weight_t)/length(1996:2000)) 
 
-# Top capture and aquaculture exporters, averaged over beginning and end time periods
-top_capture_exp_1 <- artis %>% 
-  filter(year %in% 1996:2000, method == "capture") %>%
-  group_by(exporter_iso3c, environment) %>%
-  summarise(live_weight_t = sum(live_weight_t)/length(1996:2000)) %>% 
+top_importers_past <- top_traders_past %>%
+  group_by(importer_iso3c, habitat_method) %>%
+  summarise(live_weight_t = sum(live_weight_t)) %>%
+  group_by(habitat_method) %>%
+  slice_max(n = 10, order_by = live_weight_t) %>%
   ungroup() %>%
-  group_by(exporter_iso3c) %>%
-  mutate(total = sum(live_weight_t)) %>%
+  group_by(habitat_method) %>%
+  mutate(ranking = rank(live_weight_t)) %>%
   ungroup() %>%
-  mutate(exporter = countrycode(exporter_iso3c, origin = "iso3c", destination = "country.name")) %>%
-  mutate(exporter = fct_reorder(as.factor(exporter), total)) %>%
-  slice_max(n = 2*15, order_by = total) %>%
-  ggplot(aes(x = live_weight_t/1000000, y = exporter, fill = environment)) +
-  geom_bar(stat="identity", position = "stack") + 
-  scale_fill_manual(values = environment_colors) +
-  lims(x = c(0, 4.75)) +
-  labs(x = "Ave. annual exports (million t, live weight)", y = "", fill = "Production environment", 
-       title = "Top 15 capture \nexporters (1996-2000)") +
-  theme_minimal()
+  mutate(importer_iso3c = reorder_within(importer_iso3c, ranking, habitat_method)) %>%
+  ggplot(aes(x = live_weight_t/1000000, y = importer_iso3c, fill = habitat_method)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = habitat_source_colors) +
+  scale_y_reordered() +
+  labs(y = "", x = "Live weight (million t)") +
+  facet_wrap(~habitat_method, ncol = 1, scales = "free_y") +
+  theme_minimal() +
+  theme(legend.position = "none")
 
-top_capture_exp_2 <- artis %>% 
-  filter(year %in% 2015:2019, method == "capture") %>%
-  group_by(exporter_iso3c, environment) %>%
-  summarise(live_weight_t = sum(live_weight_t)/length(2015:2019)) %>% 
-  ungroup() %>%
-  group_by(exporter_iso3c) %>%
-  mutate(total = sum(live_weight_t)) %>%
-  ungroup() %>%
-  mutate(exporter = countrycode(exporter_iso3c, origin = "iso3c", destination = "country.name")) %>%
-  mutate(exporter = fct_reorder(as.factor(exporter), total)) %>%
-  slice_max(n = 2*15, order_by = total) %>%
-  ggplot(aes(x = live_weight_t/1000000, y = exporter, fill = environment)) +
-  geom_bar(stat="identity", position = "stack") + 
-  scale_fill_manual(values = environment_colors) +
-  lims(x = c(0, 4.75)) +
-  labs(x = "Ave. annual exports (million t, live weight)", y = "", fill = "Production environment",
-       title = "Top 15 capture \nexporters (2015-2019)") +
-  theme_minimal()
 
-top_aqua_exp_1 <- artis %>% 
-  filter(year %in% 1996:2000, method == "aquaculture") %>%
-  group_by(exporter_iso3c, environment) %>%
-  summarise(live_weight_t = sum(live_weight_t)/length(1996:2000)) %>% 
+top_exporters_past <- top_traders_past %>%
+  group_by(exporter_iso3c, habitat_method) %>%
+  summarise(live_weight_t = sum(live_weight_t)) %>%
+  group_by(habitat_method) %>%
+  slice_max(n = 10, order_by = live_weight_t) %>%
   ungroup() %>%
-  group_by(exporter_iso3c) %>%
-  mutate(total = sum(live_weight_t)) %>%
+  group_by(habitat_method) %>%
+  mutate(ranking = rank(live_weight_t)) %>%
   ungroup() %>%
-  mutate(exporter = countrycode(exporter_iso3c, origin = "iso3c", destination = "country.name")) %>%
-  mutate(exporter = fct_reorder(as.factor(exporter), total)) %>%
-  slice_max(n = 2*15, order_by = total) %>%
-  ggplot(aes(x = live_weight_t/1000000, y = exporter, fill = environment)) +
-  scale_fill_manual(values = environment_colors) +
-  geom_bar(stat="identity", position = "stack") + 
-  lims(x = c(0, 4.75)) +
-  labs(x = "Ave. annual exports (million t, live weight)", y = "", fill = "Production environment",
-       title = "Top 15 aquaculture \nexporters (1996-2000)") +
-  theme_minimal()
+  mutate(exporter_iso3c = reorder_within(exporter_iso3c, ranking, habitat_method)) %>%
+  ggplot(aes(x = live_weight_t/1000000, y = exporter_iso3c, fill = habitat_method)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = habitat_source_colors) +
+  scale_y_reordered() +
+  labs(y = "", x = "Live weight (million t)") +
+  facet_wrap(~habitat_method, ncol = 1, scales = "free_y") +
+  theme_minimal() +
+  theme(legend.position = "none")
 
-top_aqua_exp_2 <- artis %>% 
-  filter(year %in% 2015:2019, method == "aquaculture") %>%
-  group_by(exporter_iso3c, environment) %>%
-  summarise(live_weight_t = sum(live_weight_t)/length(2015:2019)) %>% 
-  ungroup() %>%
-  group_by(exporter_iso3c) %>%
-  mutate(total = sum(live_weight_t)) %>%
-  ungroup() %>%
-  mutate(exporter = countrycode(exporter_iso3c, origin = "iso3c", destination = "country.name")) %>%
-  mutate(exporter = fct_reorder(as.factor(exporter), total)) %>%
-  slice_max(n = 2*15, order_by = total) %>%
-  ggplot(aes(x = live_weight_t/1000000, y = exporter, fill = environment)) +
-  scale_fill_manual(values = environment_colors) +
-  geom_bar(stat="identity", position = "stack") + 
-  lims(x = c(0, 4.75)) +
-  labs(x = "Ave. annual exports (million t, live weight)", y = "", fill = "Production environment",
-       title = "Top 15 aquaculture \nexporters (2015-2019)") +
-  theme_minimal()
+ggarrange(top_exporters_past, top_importers_past, ncol = 2, labels = c("Export", "Import"))
 
-ggarrange(top_capture_exp_1, top_capture_exp_2, top_aqua_exp_1, top_aqua_exp_2, common.legend = TRUE, legend = "bottom")
+# Largest export increases
+top_exporter_change <- bilateral_habitat_method_summary %>% 
+  filter(year %in% c(1996:2000, 2016:2020)) %>%
+  mutate(year_group = case_when(
+    year %in% 1996:2000 ~ "beginning", 
+    year %in% 2016:2020 ~ "end")) %>%
+  group_by(year_group, exporter_iso3c, habitat_method) %>% 
+  summarise(live_weight_t = sum(live_weight_t)) %>%
+  pivot_wider(names_from = year_group, values_from = live_weight_t) %>% 
+  mutate(change = end-beginning) %>% 
+  arrange(desc(change))
 
-# Top capture and aquaculture importers, averaged over beginning and end time periods
-top_capture_imp_1 <- artis %>% 
-  filter(year %in% 1996:2000, method == "capture") %>%
-  group_by(importer_iso3c, environment) %>%
-  summarise(live_weight_t = sum(live_weight_t)/length(1996:2000)) %>% 
+# Largest increases
+top_export_increases <- top_exporter_change %>% 
+  filter(habitat_method != "unknown") %>%
   ungroup() %>%
-  group_by(importer_iso3c) %>%
-  mutate(total = sum(live_weight_t)) %>%
+  group_by(habitat_method) %>%
+  slice_max(n = 10, order_by = change) %>%
   ungroup() %>%
-  mutate(importer = countrycode(importer_iso3c, origin = "iso3c", destination = "country.name")) %>%
-  mutate(importer = fct_reorder(as.factor(importer), total)) %>%
-  slice_max(n = 2*15, order_by = total) %>%
-  ggplot(aes(x = live_weight_t/1000000, y = importer, fill = environment)) +
-  geom_bar(stat="identity", position = "stack") + 
-  scale_fill_manual(values = environment_colors) +
-  lims(x = c(0, 8)) +
-  labs(x = "Ave. annual imports (million t, live weight)", y = "", fill = "Production environment", 
-       title = "Top 15 capture \nimporters (1996-2000)") +
-  theme_minimal()
+  mutate(exporter_iso3c = reorder_within(exporter_iso3c, change, habitat_method)) %>%
+  ggplot(aes(x = change/1000000, y = exporter_iso3c, fill = habitat_method, color = habitat_method)) +
+  geom_segment(aes(x=0, xend=change/1000000, y=exporter_iso3c, yend=exporter_iso3c)) +
+  geom_point(size=4) +
+  scale_color_manual(values = habitat_source_colors) +
+  scale_y_reordered() +
+  labs(y = "", x = "Live weight (million t)") +
+  facet_wrap(~habitat_method, ncol = 1, scales = "free_y") +
+  theme_minimal() +
+  theme(legend.position = "none")
 
-top_capture_imp_2 <- artis %>% 
-  filter(year %in% 2015:2019, method == "capture") %>%
-  group_by(importer_iso3c, environment) %>%
-  summarise(live_weight_t = sum(live_weight_t)/length(2015:2019)) %>% 
+# Largest decreases
+top_export_decreases <- top_exporter_change %>% 
+  filter(habitat_method != "unknown") %>%
   ungroup() %>%
-  group_by(importer_iso3c) %>%
-  mutate(total = sum(live_weight_t)) %>%
+  group_by(habitat_method) %>%
+  slice_min(n = 10, order_by = change) %>%
   ungroup() %>%
-  mutate(importer = countrycode(importer_iso3c, origin = "iso3c", destination = "country.name")) %>%
-  mutate(importer = fct_reorder(as.factor(importer), total)) %>%
-  slice_max(n = 2*15, order_by = total) %>%
-  ggplot(aes(x = live_weight_t/1000000, y = importer, fill = environment)) +
-  geom_bar(stat="identity", position = "stack") + 
-  scale_fill_manual(values = environment_colors) +
-  lims(x = c(0, 8)) +
-  labs(x = "Ave. annual imports (million t, live weight)", y = "", fill = "Production environment",
-       title = "Top 15 capture \nimporters (2015-2019)") +
-  theme_minimal()
+  mutate(exporter_iso3c = reorder_within(exporter_iso3c, change, habitat_method)) %>%
+  ggplot(aes(x = change/1000000, y = exporter_iso3c, fill = habitat_method, color = habitat_method)) +
+  geom_segment(aes(x=0, xend=change/1000000, y=exporter_iso3c, yend=exporter_iso3c)) +
+  geom_point(size=4) +
+  scale_color_manual(values = habitat_source_colors) +
+  scale_y_reordered() +
+  labs(y = "", x = "Live weight (million t)") +
+  facet_wrap(~habitat_method, ncol = 1, scales = "free_y") +
+  theme_minimal() +
+  theme(legend.position = "none")
 
-top_aqua_imp_1 <- artis %>% 
-  filter(year %in% 1996:2000, method == "aquaculture") %>%
-  group_by(importer_iso3c, environment) %>%
-  summarise(live_weight_t = sum(live_weight_t)/length(1996:2000)) %>% 
-  ungroup() %>%
-  group_by(importer_iso3c) %>%
-  mutate(total = sum(live_weight_t)) %>%
-  ungroup() %>%
-  mutate(importer = countrycode(importer_iso3c, origin = "iso3c", destination = "country.name")) %>%
-  mutate(importer = fct_reorder(as.factor(importer), total)) %>%
-  slice_max(n = 2*15, order_by = total) %>%
-  ggplot(aes(x = live_weight_t/1000000, y = importer, fill = environment)) +
-  scale_fill_manual(values = environment_colors) +
-  geom_bar(stat="identity", position = "stack") + 
-  lims(x = c(0, 8)) +
-  labs(x = "Imports (million t, live weight)", y = "", fill = "Production environment",
-       title = "Top 15 aquaculture \nimporters (1996-2000)") +
-  theme_minimal()
+ggarrange(top_export_decreases, top_export_increases, nrow = 1)
 
-top_aqua_imp_2 <- artis %>% 
-  filter(year %in% 2015:2019, method == "aquaculture") %>%
-  group_by(importer_iso3c, environment) %>%
-  summarise(live_weight_t = sum(live_weight_t)/length(2015:2019)) %>% 
-  ungroup() %>%
-  group_by(importer_iso3c) %>%
-  mutate(total = sum(live_weight_t)) %>%
-  ungroup() %>%
-  mutate(importer = countrycode(importer_iso3c, origin = "iso3c", destination = "country.name")) %>%
-  mutate(importer = fct_reorder(as.factor(importer), total)) %>%
-  slice_max(n = 2*15, order_by = total) %>%
-  ggplot(aes(x = live_weight_t/1000000, y = importer, fill = environment)) +
-  scale_fill_manual(values = environment_colors) +
-  geom_bar(stat="identity", position = "stack") + 
-  lims(x = c(0, 8)) +
-  labs(x = "Imports (million t, live weight)", y = "", fill = "Production environment",
-       title = "Top 15 aquaculture \nimporters (2015-2019)") +
-  theme_minimal()
+# Largest import increases
+top_importer_change <- bilateral_habitat_method_summary %>% 
+  filter(year %in% c(1996:2000, 2016:2020)) %>%
+  mutate(year_group = case_when(
+    year %in% 1996:2000 ~ "beginning", 
+    year %in% 2016:2020 ~ "end")) %>%
+  group_by(year_group, importer_iso3c, habitat_method) %>% 
+  summarise(live_weight_t = sum(live_weight_t)) %>%
+  pivot_wider(names_from = year_group, values_from = live_weight_t) %>% 
+  mutate(change = end-beginning) %>% 
+  arrange(desc(change))
 
-ggarrange(top_capture_imp_1, top_capture_imp_2, top_aqua_imp_1, top_aqua_imp_2, common.legend = TRUE, legend = "bottom")
+# Largest increases
+top_import_increases <-top_importer_change %>% 
+  filter(habitat_method != "unknown") %>%
+  ungroup() %>%
+  group_by(habitat_method) %>%
+  slice_max(n = 10, order_by = change) %>%
+  ungroup() %>%
+  mutate(importer_iso3c = reorder_within(importer_iso3c, change, habitat_method)) %>%
+  ggplot(aes(x = change/1000000, y = importer_iso3c, fill = habitat_method, color = habitat_method)) +
+  geom_segment(aes(x=0, xend=change/1000000, y=importer_iso3c, yend=importer_iso3c)) +
+  geom_point(size=4) +
+  scale_color_manual(values = habitat_source_colors) +
+  scale_y_reordered() +
+  labs(y = "", x = "Live weight (million t)") +
+  facet_wrap(~habitat_method, ncol = 1, scales = "free_y") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# Largest decreases
+top_import_decreases <-top_importer_change %>% 
+  filter(habitat_method != "unknown") %>%
+  ungroup() %>%
+  group_by(habitat_method) %>%
+  slice_min(n = 10, order_by = change) %>%
+  ungroup() %>%
+  mutate(importer_iso3c = reorder_within(importer_iso3c, change, habitat_method)) %>%
+  ggplot(aes(x = change/1000000, y = importer_iso3c, fill = habitat_method, color = habitat_method)) +
+  geom_segment(aes(x=0, xend=change/1000000, y=importer_iso3c, yend=importer_iso3c)) +
+  geom_point(size=4) +
+  scale_color_manual(values = habitat_source_colors) +
+  scale_y_reordered() +
+  labs(y = "", x = "Live weight (million t)") +
+  facet_wrap(~habitat_method, ncol = 1, scales = "free_y") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+ggarrange(top_import_decreases, top_import_increases, nrow = 1)
+
+
+# Repeat for regional trends
+# Largest export increases
+top_exporter_change <- bilateral_habitat_method_summary %>% 
+  filter(year %in% c(1996:2000, 2016:2020)) %>%
+  mutate(year_group = case_when(
+    year %in% 1996:2000 ~ "beginning", 
+    year %in% 2016:2020 ~ "end")) %>%
+  group_by(year_group, exporter_region, habitat_method) %>% 
+  summarise(live_weight_t = sum(live_weight_t)) %>%
+  pivot_wider(names_from = year_group, values_from = live_weight_t) %>% 
+  mutate(change = end-beginning) %>% 
+  arrange(desc(change))
+
+# Largest increases
+top_region_export <- top_exporter_change %>% 
+  filter(habitat_method != "unknown") %>%
+  ungroup() %>%
+  group_by(habitat_method) %>%
+  slice_max(n = 10, order_by = change) %>%
+  ungroup() %>%
+  mutate(exporter_region = reorder_within(exporter_region, change, habitat_method)) %>%
+  ggplot(aes(x = change/1000000, y = exporter_region, fill = habitat_method, color = habitat_method)) +
+  geom_segment(aes(x=0, xend=change/1000000, y=exporter_region, yend=exporter_region)) +
+  geom_point(size=4) +
+  scale_color_manual(values = habitat_source_colors) +
+  scale_y_reordered() +
+  labs(y = "", x = "Live weight (million t)") +
+  facet_wrap(~habitat_method, ncol = 1, scales = "free_y") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# Largest import increases
+top_importer_change <- bilateral_habitat_method_summary %>% 
+  filter(year %in% c(1996:2000, 2016:2020)) %>%
+  mutate(year_group = case_when(
+    year %in% 1996:2000 ~ "beginning", 
+    year %in% 2016:2020 ~ "end")) %>%
+  group_by(year_group, importer_region, habitat_method) %>% 
+  summarise(live_weight_t = sum(live_weight_t)) %>%
+  pivot_wider(names_from = year_group, values_from = live_weight_t) %>% 
+  mutate(change = end-beginning) %>% 
+  arrange(desc(change))
+
+# Largest increases
+top_region_import <-top_importer_change %>% 
+  filter(habitat_method != "unknown") %>%
+  ungroup() %>%
+  group_by(habitat_method) %>%
+  slice_max(n = 10, order_by = change) %>%
+  ungroup() %>%
+  mutate(importer_region = reorder_within(importer_region, change, habitat_method)) %>%
+  ggplot(aes(x = change/1000000, y = importer_region, fill = habitat_method, color = habitat_method)) +
+  geom_segment(aes(x=0, xend=change/1000000, y=importer_region, yend=importer_region)) +
+  geom_point(size=4) +
+  scale_color_manual(values = habitat_source_colors) +
+  scale_y_reordered() +
+  labs(y = "", x = "Live weight (million t)") +
+  facet_wrap(~habitat_method, ncol = 1, scales = "free_y") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+
+ggarrange(top_region_export, top_region_import, nrow = 1, labels = c("Export", "Import"))
+
 ```
 
 ```{r SI_top_traders}
@@ -715,6 +735,7 @@ imports_by_region <- artis_region %>%
         strip.text.x = element_blank(),
         axis.text.x = element_blank())
 
+png("outputs/fig2a.png")
 ggarrange(ggarrange(imports_by_region, NULL,
                     ncol = 2, nrow = 1,
                     widths = c(4, 1)),
@@ -723,39 +744,9 @@ ggarrange(ggarrange(imports_by_region, NULL,
                     widths = c(4, 1)),
           ncol = 1, nrow = 2, 
           heights = c(1, 4))
-
+dev.off()
 ```
 
-
-
-```{r africa_trade_by_method}
-africa_exports <- artis_region_method %>%
-  filter(exporter_region == "Africa", 
-         importer_region != "Africa") %>%
-  group_by(year, habitat_method) %>%
-  summarise(live_weight_t = sum(live_weight_t)/1000000) %>%
-  ggplot(aes(x = year, y = live_weight_t, color = habitat_method)) +
-  geom_line() +
-  lims(y = c(0, 3.25)) +
-  scale_color_manual(values = habitat_source_colors) +
-  theme_minimal() + 
-  labs(x = "", y = "Exports (million t, live weight)", color = "Source")
-  
-  
-africa_imports <- artis_region_method %>%
-  filter(importer_region == "Africa", 
-         exporter_region != "Africa") %>%
-  group_by(year, habitat_method) %>%
-  summarise(live_weight_t = sum(live_weight_t)/1000000) %>%
-  ggplot(aes(x = year, y = live_weight_t, color = habitat_method)) +
-  geom_line() +
-  lims(y = c(0, 3.25)) +
-  scale_color_manual(values = habitat_source_colors) +
-  theme_minimal() + 
-  labs(x = "", y = "Exports (million t, live weight)", color = "Source")
-
-ggarrange(africa_exports, africa_imports, common.legend = TRUE, labels = c("Africa exports", "Africa imports"))
-```
 
 # Figure 3: Supply patterns
 
@@ -959,8 +950,9 @@ export_supply <- country_supply %>%
   theme_bw()
 ```
 
-```{r, fig.height = 4, fig.width = 4}
+```{r, fig.height = 4, fig.width = 5}
 # Join figures
+png("outputs/fig3.png")
 ggarrange(
   ggarrange(global_percap_supply_line, regional_percap_supply_area, 
             common.legend = TRUE, nrow = 1, widths = c(1, 2),
@@ -973,6 +965,7 @@ ggarrange(
             labels = c("e", "f")),
   nrow = 3
 )
+dev.off()
 ```
 
 
@@ -1096,6 +1089,7 @@ diversity %>%
 ```
 
 ```{r, fig.height = 3, fig.width = 3}
+png("outputs/fig4.png")
 ggarrange(prod_import_diversity_trends, 
           ggarrange(foreign_vs_domestic_diversity,
                     imports_vs_supply_diversity,
@@ -1106,10 +1100,6 @@ ggarrange(prod_import_diversity_trends,
           nrow = 2,
           labels = c("a", "", "")
           )
-```
-
-
-```{r}
-
+dev.off()
 ```
 
