@@ -648,30 +648,16 @@ artis_region_method <- artis %>%
   summarise(live_weight_t = sum(live_weight_t)) %>%
   ungroup() %>%
   mutate(exporter_importer = paste(exporter_region, " to ", importer_region, sep = "")) 
-
-region_trend_matrix_method <- artis_region_method %>% 
-  ggplot(aes(x = year, y = live_weight_t/1000000, fill = habitat_method)) +
-  geom_area() +
-  scale_fill_manual(values = habitat_source_colors) +
-  labs(x = "", y = "Trade (million t, live weight)", color = "Ave. annual change in export \n(1000 t live weight)") +
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), 
-        legend.position = "none",
-        strip.background = element_blank(),
-        strip.text.x = element_blank(),
-        strip.text.y = element_blank()) +
-  facet_grid(rows = vars(exporter_region), cols = vars(importer_region), 
-             labeller = label_wrap_gen(width = 5), scales = "free")
   
 # Create basic plot for the legend
-artis_region_method %>%
-  group_by(year, exporter_region) %>%
-  summarise(live_weight_t = sum(live_weight_t)) %>%
-  ggplot(aes(x = year, y = live_weight_t, fill = exporter_region)) +
-  geom_area() +
-  scale_fill_manual(values = region_colors) +
-  labs(fill = "Region") +
-  theme(legend.position = "bottom")
+# artis_region_method %>%
+#   group_by(year, exporter_region) %>%
+#   summarise(live_weight_t = sum(live_weight_t)) %>%
+#   ggplot(aes(x = year, y = live_weight_t, fill = exporter_region)) +
+#   geom_area() +
+#   scale_fill_manual(values = region_colors) +
+#   labs(fill = "Region") +
+#   theme(legend.position = "bottom")
 ```
 
 
@@ -690,27 +676,48 @@ region_slopes <- artis_region %>%
   select(exporter_importer, "slope" = "estimate")
   
 artis_region <- artis_region %>%
-  left_join(region_slopes, by = "exporter_importer")
+  left_join(region_slopes, by = "exporter_importer") %>% 
+  mutate(intraregion = case_when(
+           exporter_region == importer_region ~ "intraregional trade",
+           exporter_region != importer_region ~ "interegional trade")) 
 
 ```
 
 
-```{r region_trend_lollipop, fig.height=4, fig.width=8}
-region_slopes_ranked <- region_slopes %>%
+# SI Fig X: Bilateral region trends lollypop plot
+
+```{r region_trend_lollipop, fig.height=4, fig.width=3}
+region_slopes_ranked <- artis_region %>%
+  select(-year, -live_weight_t) %>%
+  distinct() %>%
   mutate(exporter_importer = fct_reorder(exporter_importer, slope)) %>%
-  ggplot(aes(x = slope/1000, y = exporter_importer, color = slope, fill = slope)) +
-  geom_segment(aes(xend = 0, yend = exporter_importer)) +
-  geom_point() +
-  scale_color_gradient2(low = "#E24027", mid = "grey70", high = "#1B708F") +
-  scale_fill_gradient2(low = "#E24027", mid = "grey70", high = "#1B708F") +
-  labs(y = "", x = "Ave. annual change in export (1000 t live weight)") +
-  theme_bw() +
-  theme(legend.position = "blank")
+  ggplot(aes(x = slope/1000, y = exporter_importer, color = intraregion)) +
+  geom_segment(aes(x=0, xend=slope/1000, y=exporter_importer, yend=exporter_importer, color = intraregion)) +
+  geom_point(size=3) +
+  scale_y_reordered() +
+  scale_color_manual(values = habitat_source_colors[c(1,4)]) +
+  labs(y = "", x = "Ave. annual change in export (1000 t live weight)", color = "") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
 
-ggarrange(region_trend_matrix_method, region_slopes_ranked, widths = c(1.5,1))
+region_slopes_ranked
+
 ```
 
-```{r, fig.height=3, fig.width=4}
+```{r, fig.height=3, fig.width=5}
+region_trend_matrix_method <- artis_region_method %>% 
+  ggplot(aes(x = year, y = live_weight_t/1000000, fill = habitat_method)) +
+  geom_area() +
+  scale_fill_manual(values = habitat_source_colors) +
+  labs(x = "", y = "Trade (million t, live weight)", color = "Ave. annual change in export \n(1000 t live weight)") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), 
+        legend.position = "none",
+        strip.background = element_blank(),
+        plot.margin=unit(c(0,0,0,0), "cm")) +
+  facet_grid(rows = vars(exporter_region), cols = vars(importer_region), 
+             labeller = label_wrap_gen(width = 5), scales = "free")
+
 exports_by_region <- artis_region %>% 
   ggplot(aes(x = year, y = live_weight_t/1000000, fill = importer_region)) +
   geom_area() +
@@ -721,7 +728,8 @@ exports_by_region <- artis_region %>%
     theme(legend.position = "none",
         strip.background = element_blank(),
         strip.text.x = element_blank(),
-        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        plot.margin=unit(c(0,0.5,0,0), "cm"))
 
 imports_by_region <- artis_region %>% 
   ggplot(aes(x = year, y = live_weight_t/1000000, fill = exporter_region)) +
@@ -733,17 +741,20 @@ imports_by_region <- artis_region %>%
   theme(legend.position = "none",
         strip.background = element_blank(),
         strip.text.x = element_blank(),
-        axis.text.x = element_blank())
+        axis.text.x = element_blank(),
+        plot.margin=unit(c(0.5,0,0,0), "cm"))
 
-png("outputs/fig2a.png")
+png("outputs/fig2a.png", width = 6.5, height = 5, res = 500, units = "in")
 ggarrange(ggarrange(imports_by_region, NULL,
                     ncol = 2, nrow = 1,
-                    widths = c(4, 1)),
-          ggarrange(region_trend_matrix_method, exports_by_region, 
+                    widths = c(4.5, 1.25), labels = c("a", "")),
+          ggarrange(region_trend_matrix_method, 
+                    ggarrange(NULL, exports_by_region,
+                              ncol = 1, heights = c(0.3, 4)), 
                     ncol = 2, nrow = 1,
-                    widths = c(4, 1)),
+                    widths = c(4.5, 1), labels = c("b", "c")),
           ncol = 1, nrow = 2, 
-          heights = c(1, 4))
+          heights = c(1, 4.5))
 dev.off()
 ```
 
