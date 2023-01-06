@@ -64,12 +64,9 @@ rm(list = c("con"))
 ```
 
 ```{r set_directories}
-# Set time series dates
-date_nodash <- "20220926"
-date_dash <- "2022-09-26"
-
 # Set directories 
 outdir <- "/Volumes/jgephart/ARTIS/Outputs/ms_seafood_globalization"
+outdir <- "outputs"
 
 # Set color palettes
 # All colors from palette: #FFE6BE (light yellow), #F7AF75 (light orange), #F37542 (medium orange), 
@@ -671,7 +668,8 @@ artis_region_method %>%
   geom_area() +
   scale_fill_manual(values = region_colors) +
   labs(fill = "Region") +
-  theme(legend.position = "bottom")
+  theme(legend.position = "bottom") +
+  theme_bw()
 ```
 
 
@@ -770,8 +768,9 @@ supply <- calculate_supply(artis %>%
   left_join(country_metadata %>% 
               select(iso3c, "region" = "owid_region"), by = "iso3c") %>% 
       mutate(supply_no_error = case_when(supply_no_error < 0 ~ 0,
-                                     TRUE ~ supply_no_error)) 
+                                     TRUE ~ supply_no_error))
 
+write.csv(supply, file.path(outdir, "supply.csv"), row.names = FALSE)
 ```
 
 
@@ -855,7 +854,7 @@ global_percap_supply_area <- supply_total %>%
 global_percap_supply_line <- supply_total %>%
   filter(region != "Other nei") %>%
   group_by(year, habitat_method) %>%
-  summarise(supply_per_cap = (sum(supply_no_error))/sum(pop)) %>%
+  summarise(supply_per_cap = 1000 * (sum(supply_no_error))/sum(pop)) %>%
   ggplot(aes(x = year, y = supply_per_cap, color = habitat_method)) +
   geom_line() + 
   labs(y = "Per capita supply (kg)", x = "", color = "Source") +
@@ -911,14 +910,16 @@ country_supply <- supply %>%
             production_t = sum(production_t)
   ) %>% 
   left_join(pop %>% select(-region), by = c("iso3c", "year")) %>%
-  mutate(supply_per_cap = supply_no_error/pop) 
+  mutate(supply_per_cap = supply_no_error/pop) %>%
+  # Converting from tonnes to kg
+  mutate(supply_per_cap = 1000 * supply_per_cap)
 ```
 
 ```{r, fig.height = 5, fig.width = 3}
 country_supply %>% 
   ungroup() %>%
   mutate(iso3c = fct_reorder(iso3c, supply_per_cap)) %>%
-  filter(supply_per_cap > 50) %>%
+  #filter(supply_per_cap > 50) %>%
   ggplot(aes(x = supply_per_cap, y = iso3c, fill = region)) +
   geom_bar(stat = "identity") +
   scale_fill_manual(values = region_colors) +
@@ -960,9 +961,9 @@ ggarrange(
   ggarrange(global_supply_trends, region_supply_trends,
             common.legend = TRUE, nrow = 1, widths = c(1, 2),
             labels = c("c", "d")),
-  ggarrange(import_supply, export_supply, 
-            common.legend = TRUE, nrow = 1, widths = c(1, 1),
-            labels = c("e", "f")),
+  # ggarrange(import_supply, export_supply, 
+  #           common.legend = TRUE, nrow = 1, widths = c(1, 1),
+  #           labels = c("e", "f")),
   nrow = 3
 )
 dev.off()

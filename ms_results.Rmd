@@ -12,6 +12,7 @@ library(tidyverse)
 library(countrycode)
 library(kableExtra)
 library(ggpubr)
+library(tidytext)
 
 # Set color palettes 
 habitat_source_colors <- c("#1B708F", # blue = marine capture
@@ -220,13 +221,13 @@ Global capture fishery trade increased from `r total_capture_1996` million t (li
 Global aquaculture fishery trade increased from `r total_aquaculture_1996` million t (live weight) in 1996 to `r total_aquaculture_2019` million t (live weight) in 2019, representing a `r round(100*((total_aquaculture_2019-total_aquaculture_1996)/total_aquaculture_1996),0)`% increase over that period. In 1996, aquaculture fishery trade represented `r round(100*total_aquaculture_1996/total_1996)`% of all seafood exports and by 2019 capture fishery exports represented `r round(100*total_aquaculture_2019/total_2019)`% of all seafood exports. 
 
 ```{r covid_effect}
-artis %>% 
-  filter(year %in% 2019:2020) %>% 
-  group_by(year, habitat_method) %>% 
-  summarise(live_weight_t = sum(live_weight_t)) %>% 
-  pivot_wider(names_from = year, values_from = live_weight_t, names_prefix = "year") %>% 
-  mutate(change = (year2019-year2020)/year2020) %>% 
-  arrange(desc(change))
+# artis %>% 
+#   filter(year %in% 2019:2020) %>% 
+#   group_by(year, habitat_method) %>% 
+#   summarise(live_weight_t = sum(live_weight_t)) %>% 
+#   pivot_wider(names_from = year, values_from = live_weight_t, names_prefix = "year") %>% 
+#   mutate(change = (year2019-year2020)/year2020) %>% 
+#   arrange(desc(change))
 ```
 
 
@@ -793,6 +794,127 @@ bilateral_habitat_method_summary %>%
   
 ```
 
+```{r consumption}
+
+supply <- read.csv("outputs/supply.csv")
+
+global_supply <- supply %>%
+  group_by(year) %>%
+  summarize(supply_no_error = sum(supply_no_error) / 1000000) %>%
+  ungroup()
+
+global_supply_1996 <- global_supply %>%
+  filter(year == 1996) %>%
+  pull(supply_no_error)
+
+global_supply_2020 <- global_supply %>%
+  filter(year == 2020) %>%
+  pull(supply_no_error)
+
+regional_supply <- supply %>%
+  group_by(year, region) %>%
+  summarize(supply_no_error = sum(supply_no_error)) %>%
+  ungroup() %>%
+  group_by(year) %>%
+  mutate(supply_no_error_total = sum(supply_no_error)) %>%
+  ungroup() %>%
+  mutate(percent_supply = 100 * supply_no_error / supply_no_error_total)
+
+habitat_method_supply <- supply %>%
+  group_by(year, habitat, method) %>%
+  summarize(supply_no_error = sum(supply_no_error)) %>%
+  ungroup() %>%
+  group_by(year) %>%
+  mutate(supply_no_error_total = sum(supply_no_error)) %>%
+  ungroup() %>%
+  mutate(percent_supply = 100 * supply_no_error / supply_no_error_total)
+
+tmp <- habitat_method_supply %>%
+  select(habitat, method, year, supply_no_error) %>%
+  filter(year == 1996 | year == 2020) %>%
+  mutate(year = paste("year", year, sep = "_")) %>%
+  pivot_wider(names_from = year, values_from = supply_no_error) %>%
+  mutate(percent_diff = 100 * (year_2020 - year_1996) / year_1996)
+
+inland_aqua_supply_change <- tmp %>%
+  filter(habitat == "inland" & method == "aquaculture") %>%
+  pull(percent_diff)
+
+marine_aqua_supply_change <- tmp %>%
+  filter(habitat == "marine" & method == "aquaculture") %>%
+  pull(percent_diff)
+
+marine_cap_supply_change <- tmp %>%
+  filter(habitat == "marine" & method == "capture") %>%
+  mutate(percent_diff = abs(percent_diff)) %>%
+  pull(percent_diff)
+
+marine_cap_supply_percent <- habitat_method_supply %>%
+  filter(year == 2020) %>%
+  filter(percent_supply == max(percent_supply)) %>%
+  pull(percent_supply)
+
+method_supplies <- supply %>%
+  filter(year == 2020) %>%
+  group_by(method) %>%
+  summarize(supply_no_error = sum(supply_no_error)) %>%
+  ungroup() %>%
+  mutate(total_supply = sum(supply_no_error)) %>%
+  mutate(percent_supply = 100 * supply_no_error / total_supply)
+
+regional_method_supplies <- supply %>%
+  filter(year == 2020) %>%
+  group_by(year, region, method) %>%
+  summarize(supply_no_error = sum(supply_no_error)) %>%
+  ungroup() %>%
+  group_by(year, region) %>%
+  mutate(region_supply = sum(supply_no_error)) %>%
+  ungroup() %>%
+  mutate(percent_supply = 100 * supply_no_error / region_supply) %>%
+  select(region, region_supply, method, percent_supply) %>%
+  pivot_wider(names_from = "method", values_from = "percent_supply")
+
+oceania_cap_supply_percent <- regional_method_supplies %>%
+  filter(region == "Oceania") %>%
+  pull(capture)
+
+asia_cap_supply_percent <- regional_method_supplies %>%
+  filter(region == "Asia") %>%
+  pull(capture)
+
+cap_supply_percent <- method_supplies %>%
+  filter(method == "capture") %>%
+  pull(percent_supply)
+
+asia_farmed_year <- supply %>%
+  filter(region == "Asia") %>%
+  group_by(year, method) %>%
+  summarize(supply_no_error = sum(supply_no_error)) %>%
+  ungroup() %>%
+  filter(method == "capture" | method == "aquaculture") %>%
+  pivot_wider(names_from = method, values_from = supply_no_error) %>%
+  filter(aquaculture > capture) %>%
+  filter(year == min(year)) %>%
+  pull(year)
+
+
+consumption_foreign <- supply %>%
+  filter(year == 1996 | year == 2020) %>%
+  group_by(year) %>%
+  summarize(supply_foreign = sum(supply_foreign),
+            supply_no_error = sum(supply_no_error)) %>%
+  ungroup() %>%
+  mutate(percent_supply = 100 * supply_foreign / supply_no_error)
+
+foreign_consumption_start <- consumption_foreign %>%
+  filter(year == 1996) %>%
+  pull(percent_supply)
+
+foreign_consumption_end <- consumption_foreign %>%
+  filter(year == 2020) %>%
+  pull(percent_supply)
+  
+```
 
 
 ## Text for MS
@@ -815,9 +937,9 @@ Least developed countries are net importers of blue foods [true of all productio
 
 Since direct measurements of consumption are not collected globally, our understanding of global consumption patterns are based on apparent consumption, which generally represents the sum of production and imports minus exports and waste. Consequently, trade is central to estimating consumption and the resolution of consumption patterns is limited by the resolution of the production and trade data. By estimating species level trade, we are able to estimate apparent consumption of blue foods by species and production method. 
 
-Globally, blue food consumption increased from X in 1996 to Y in 2020. Blue food consumption also increased across all regions outside of South America, where per capita blue food consumption decreased X%, from X% in 1996 to Y% in 2020. [Double check that FMFO was excluded and discuss this pattern]. Most of the global increase was from inland and marine aquaculture, which increased by X and Y%, respectively, over that period while marine capture consumption declined by X%. Marine capture still makes up X% of global blue food consumption and its contribution to regional blue food supplies ranges from X% in Y to X% in Asia, where farmed consumption overtook wild consumption in [year].  
+Globally, blue food consumption increased from `r signif(global_supply_1996, digit = 3)` (million tonnes) in 1996 to `r signif(global_supply_2020, digit = 3)` (million tonnes) in 2020. Blue food consumption also increased across all regions outside of South America, where per capita blue food consumption decreased X%, from X% in 1996 to Y% in 2020. [say this is supply included non food uses] [Double check that FMFO was excluded and discuss this pattern]. Most of the global increase was from inland and marine aquaculture, which increased by `r signif(inland_aqua_supply_change, digits = 3)` and `r signif(inland_aqua_supply_change, digits = 3)`%, respectively, over that period while marine capture consumption declined by `r signif(marine_cap_supply_change, digits = 1)`%. Capture still makes up `r signif(cap_supply_percent, digits = 2)`% of global blue food consumption and its contribution to regional blue food supplies ranges from `r signif(oceania_cap_supply_percent, digits = 2)`% in Oceania to `r signif(asia_cap_supply_percent, digits = 2)`% in Asia, where farmed consumption overtook wild consumption in `r asia_farmed_year`.
 
-High reliance on foreign-sourced foods can pose a food security risk, motivating policies to protect domestic supplies such as the development of grain stocks and support for domestic food production (REFs). For example, high seafood import dependence in the US was used to propose a suite of policy changes to boost domestic production, including expanding aquaculture production and opening marine protected areas to fishing (Gephart et al. 2019). Since we estimate exports from domestic and foreign sources, we are able to track changes in reliance on foreign sourced products. Globally, the share of consumption that is foreign sourced has increased from X% to Y% (Fig 3c), but patterns vary across regions with Asia and S America dominated by domestic supply, but Europe dominated by foreign supply (Fig 3d). [Add points about patterns across production methods].
+High reliance on foreign-sourced foods can pose a food security risk, motivating policies to protect domestic supplies such as the development of grain stocks and support for domestic food production (REFs). For example, high seafood import dependence in the US was used to propose a suite of policy changes to boost domestic production, including expanding aquaculture production and opening marine protected areas to fishing (Gephart et al. 2019). Since we estimate exports from domestic and foreign sources, we are able to track changes in reliance on foreign sourced products. Globally, the share of consumption that is foreign sourced has increased from `r signif(foreign_consumption_start, digits = 3)`% to `r signif(foreign_consumption_end, digits = 3)`% (Fig 3c), but patterns vary across regions with Asia and S America dominated by domestic supply, but Europe dominated by foreign supply (Fig 3d). [Add points about patterns across production methods].
 	
 The diversity of blue food production globally enables high diversity in blue food consumption. However, one concern about food trade is that it leads to homogenization of diets (REFS). To explore this issue, we compared the diversity (represented by the Shannon index) of production versus imports and domestic supply versus foreign supply, as well as the diversity of total supply versus total import volume (Fig 4). One notable limitation of this measure of supply diversity is that instances where production or trade is only estimated at the genus or higher level will be interpreted in the calculation as a single species. Consequently, countries with low species resolution will generally appear to have less diverse production, limiting the ability to compare supply diversity across countries.  
 We find that across all regions and over time, production diversity is higher than import diversity (Fig 4a). Additionally, the diversity of domestic supply is generally higher than the diversity of foreign supply, with the domestic diversity is higher in 68% of cases across all years (Fig 4b). Nevertheless, total imports are still positively associated with supply diversity across all regions (Fig 4c). This suggests that although domestic production diversity is generally higher than the diversity of imported products, trade is still bringing in new species and increasing the diversity of products available on the market. Although imports appear to currently add to supply diversity, it is important for it not to displace domestic production diversity, particularly given that domestic production still contributes more to the diversity of the overall blue food supply.
