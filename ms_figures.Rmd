@@ -962,9 +962,9 @@ export_supply <- country_supply %>%
   theme_bw()
 ```
 
-```{r, fig.height = 4, fig.width = 5}
+```{r, fig.height = 5, fig.width = 7}
 # Join figures
-png("outputs/fig3.png")
+png("outputs/fig3.png", width = 7, height = 5, units = "in", res = 500)
 ggarrange(
   ggarrange(global_percap_supply_line, regional_percap_supply_area, 
             common.legend = TRUE, nrow = 1, widths = c(1, 2),
@@ -972,10 +972,7 @@ ggarrange(
   ggarrange(global_supply_trends, region_supply_trends,
             common.legend = TRUE, nrow = 1, widths = c(1, 2),
             labels = c("c", "d")),
-  # ggarrange(import_supply, export_supply, 
-  #           common.legend = TRUE, nrow = 1, widths = c(1, 1),
-  #           labels = c("e", "f")),
-  nrow = 3
+  nrow = 2
 )
 dev.off()
 ```

@@ -221,7 +221,6 @@ Global capture fishery trade increased from `r total_capture_1996` million t (li
 Global aquaculture fishery trade increased from `r total_aquaculture_1996` million t (live weight) in 1996 to `r total_aquaculture_2019` million t (live weight) in 2019, representing a `r round(100*((total_aquaculture_2019-total_aquaculture_1996)/total_aquaculture_1996),0)`% increase over that period. In 1996, aquaculture fishery trade represented `r round(100*total_aquaculture_1996/total_1996)`% of all seafood exports and by 2019 capture fishery exports represented `r round(100*total_aquaculture_2019/total_2019)`% of all seafood exports. 
 
 ```{r covid_effect}
-<<<<<<< HEAD
 # artis %>% 
 #   filter(year %in% 2019:2020) %>% 
 #   group_by(year, habitat_method) %>% 
@@ -229,15 +228,6 @@ Global aquaculture fishery trade increased from `r total_aquaculture_1996` milli
 #   pivot_wider(names_from = year, values_from = live_weight_t, names_prefix = "year") %>% 
 #   mutate(change = (year2019-year2020)/year2020) %>% 
 #   arrange(desc(change))
-=======
-artis %>% 
-  filter(year %in% 2019:2020) %>% 
-  group_by(year, habitat_method) %>% 
-  summarise(live_weight_t = sum(live_weight_t)) %>% 
-  pivot_wider(names_from = year, values_from = live_weight_t, names_prefix = "year", values_fill = 0) %>% 
-  mutate(change = (year2019-year2020)/year2020) %>% 
-  arrange(desc(change))
->>>>>>> e1c663babf7d308c8f7a114e39f04496f2c95b0a
 ```
 
 
@@ -811,6 +801,67 @@ percent_flow_increases_marine_capture <- 100*(nrow(bilateral_flow_change_method 
   
 ```
 
+```{r LDC_patterns}
+# LDC countries according to UN (https://www.un.org/development/desa/dpad/least-developed-country-category/ldcs-at-a-glance.html)
+LDC_countries <- c("Afghanistan", "Angola", "Bangladesh", "Benin", "Bhutan", "Burkina Faso", "Burundi", "Cambodia", "Central African Republic", "Chad", "Comoros", "Democratic Republic of the Congo", "Djibouti", "Eritrea", "Ethiopia", "Gambia", "Guinea", "Guinea-Bissau", "Haiti", "Kiribati", "Lao People’s Dem. Republic", "Lesotho", "Liberia", "Madagascar", "Malawi", "Mali", "Mauritania", "Mozambique", "Myanmar", "Nepal", "Niger", "Rwanda", "Sao Tome and Principe", "Senegal", "Sierra Leone", "Solomon Islands", "Somalia", "South Sudan", "Sudan", "Timor-Leste", "Togo", "Tuvalu", "Uganda", "United Republic of Tanzania", "Yemen", "Zambia")
+
+LDC_countries <- countrycode(LDC_countries, origin = "country.name", destination = "iso3c")
+
+ldc_habitat_method_summary <- bilateral_habitat_method_summary %>%
+  mutate(
+    importer_ldc = case_when(
+    (importer_iso3c %in% LDC_countries) ~ "LDC",
+    !(importer_iso3c %in% LDC_countries) ~ "non-LDC"),
+     exporter_ldc = case_when(
+    (exporter_iso3c %in% LDC_countries) ~ "LDC",
+    !(exporter_iso3c %in% LDC_countries) ~ "non-LDC")) %>%
+  group_by(year, exporter_ldc, importer_ldc, habitat_method) %>%
+  summarise(live_weight_t = sum(live_weight_t))
+
+ldc_net_habitat_method_summary <- ldc_habitat_method_summary %>%
+  ungroup() %>% 
+  filter(importer_ldc == "LDC", exporter_ldc == "non-LDC") %>% 
+  select(year, habitat_method, "ldc_import" = "live_weight_t") %>%
+  left_join(ldc_habitat_method_summary %>%
+              ungroup() %>%
+              filter(importer_ldc == "non-LDC", exporter_ldc == "LDC") %>% 
+              select(year, habitat_method, "ldc_export" = "live_weight_t"),
+            by = c("year", "habitat_method")) %>%
+  mutate(net_import = ldc_import-ldc_export,
+         net_export = ldc_export-ldc_import)
+
+ldc_net_habitat_method_summary %>%
+  filter(habitat_method != "unknown") %>%
+  ggplot(aes(x = year, y = net_export/1000000, color = habitat_method)) +
+  geom_line() +
+  scale_color_manual(values = habitat_source_colors) +
+  labs(x = "", y = "Net export (million t)", color = "") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+ldc_net_habitat_method_summary %>%
+  group_by(year) %>% 
+  summarise(net_export = sum(net_export))
+
+```
+
+
+## Text for MS
+
+The top importers, exporters, and bilateral flows vary by production method, underscoring the importance of disaggregating blue food trade (Fig SX). In recent years, the marine capture and aquaculture trade networks have been dominated by Asia and Europe, and to a lesser extent, North America (Fig SX). Since 1996, the marine trade networks shifted more toward Asia and Europe, with large increases in marine capture imports and exports by Africa and large increases in marine aquaculture exports from South America and imports to North America (Fig SX). At the country level, although some countries rank among the top traders across production methods, such as China for exports and the USA for imports, many countries are only top traders for one production method. Meanwhile, inland farmed and wild production is oriented more toward domestic consumption and what is exported tends to stay within the region, particularly within Asia (Fig 2; Fig SX). Inland blue food trade is dominated by aquaculture, with the largest exports from Vietnam and China and the largest imports by the United States, Japan, and South Korea (Fig SX). 
+
+Intraregional trade is generally stronger due to shorter transport distances, historical ties, and established regional trade agreements (REF). This pattern generally holds for blue food trade as intraregional trade is either the highest or second highest for all regions other than Oceania and South America. [Suggestions for discussion points around Oceania and South America exports?] Regional trade strengthened within Asia, Europe and Africa, where intraregional trade increased more than interegional trade. 
+
+Since 1996, nearly all regional trade pairs increased, other than South America to Europe and Asia and within North America. The largest average annual growth increases occurred for trade within Asia, within Europe and between Europe and Asia. At the country level, `r round(percent_flow_increases, 1)`% of trade pairs increased, with the most increases for marine/inland aquaculture/capture. The declining exports from South America mirror declining marine catch over this period. [Suggestions for discussion points and context related to this?]. 
+
+Least developed countries are net importers of blue foods [true of all production methods?] and this pattern has increased X% since 1996 (Fig SX - need to create this figure). Net imports of blue foods has previously been identified as a threat to nutrition security in these nations as [check ref for reasoning here] (REF). High net imports is also associated with risk of receiving shocks propagated through trade (Gephart et al. 2016).
+
+
+## Other summary stats
+
+
+# National blue food supplies
+
 ```{r consumption}
 
 supply <- read.csv("outputs/supply.csv")
@@ -932,23 +983,6 @@ foreign_consumption_end <- consumption_foreign %>%
   pull(percent_supply)
   
 ```
-
-
-## Text for MS
-
-The top importers, exporters, and bilateral flows vary by production method, underscoring the importance of disaggregating blue food trade (Fig SX). In recent years, the marine capture and aquaculture trade networks have been dominated by Asia and Europe, and to a lesser extent, North America (Fig SX). Since 1996, the marine trade networks shifted more toward Asia and Europe, with large increases in marine capture imports and exports by Africa and large increases in marine aquaculture exports from South America and imports to North America (Fig SX). At the country level, although some countries rank among the top traders across production methods, such as China for exports and the USA for imports, many countries are only top traders for one production method. Meanwhile, inland farmed and wild production is oriented more toward domestic consumption and what is exported tends to stay within the region, particularly within Asia (Fig 2; Fig SX). Inland blue food trade is dominated by aquaculture, with the largest exports from Vietnam and China and the largest imports by the United States, Japan, and South Korea (Fig SX). 
-
-Intraregional trade is generally stronger due to shorter transport distances, historical ties, and established regional trade agreements (REF). This pattern generally holds for blue food trade as intraregional trade is either the highest or second highest for all regions other than Oceania and South America. [Suggestions for discussion points around Oceania and South America exports?] Regional trade strengthened within Asia, Europe and Africa, where intraregional trade increased more than interegional trade. 
-
-Since 1996, nearly all regional trade pairs increased, other than South America to Europe and Asia and within North America. The largest average annual growth increases occurred for trade within Asia, within Europe and between Europe and Asia. At the country level, `r round(percent_flow_increases, 1)`% of trade pairs increased, with the most increases for marine/inland aquaculture/capture. The declining exports from South America mirror declining marine catch over this period. [Suggestions for discussion points and context related to this?]. 
-
-Least developed countries are net importers of blue foods [true of all production methods?] and this pattern has increased X% since 1996 (Fig SX - need to create this figure). Net imports of blue foods has previously been identified as a threat to nutrition security in these nations as [check ref for reasoning here] (REF). High net imports is also associated with risk of receiving shocks propagated through trade (Gephart et al. 2016).
-
-
-## Other summary stats
-
-
-# National blue food supplies
 
 ## Text for MS
 
