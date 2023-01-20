@@ -27,8 +27,6 @@ library(tidytext)
 # Set directories
 datadir <- "/Volumes/jgephart/ARTIS/Outputs/ms_seafood_globalization/20220111"
 outdir <- "/Volumes/jgephart/ARTIS/Outputs/ms_seafood_globalization/outputs_20220111"
-
-
 ```
 
 ```{r color_palettes}
@@ -544,6 +542,49 @@ regional_slopes_ranked <- regional_avg_annual_change %>%
   theme(legend.position = "bottom")
 
 regional_slopes_ranked
+```
+
+```{r ldc_net_exports_habitat_method}
+ldc_net_habitat_method_summary <- read.csv(file.path(datadir, "ldc_net_habitat_method_summary.csv"))
+
+ldc_net_exports_by_source_plot <- ldc_net_habitat_method_summary %>%
+  ggplot(aes(x = year, y = net_export/1000000, color = habitat_method)) +
+  geom_line() +
+  scale_color_manual(values = habitat_source_colors) +
+  labs(x = "", y = "Net export (million t)", color = "") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+ldc_net_exports_by_source_plot
+```
+
+```{r trade_concentration_n_countries}
+# Concentration of trade by production source, measured as the number of countries comprising 75%
+
+export_n_countries_concentration <- read.csv(file.path(datadir, "export_concentration_n_countries_by_source.csv"))
+import_n_countries_concentration <- read.csv(file.path(datadir, "import_concentration_n_countries_by_source.csv"))
+
+export_n_countries_by_source_plot <- export_n_countries_concentration %>%
+  ggplot(aes(x = year, y = n, color = habitat_method)) +
+  geom_line() +
+  scale_color_manual(values = habitat_source_colors) +
+  geom_line(data = export_concentration_n_countries, aes(x = year, y = n), color = "black") +
+  labs(x = "", y = paste("Number of countries comprising ", cumulative_percent_threshold, "% of exports", sep = ""), color = "Source") +
+  lims(y = c(0, 30)) +
+  theme_bw()
+
+export_n_countries_by_source_plot
+
+import_n_countries_by_source_plot <- import_n_countries_concentration %>%
+  ggplot(aes(x = year, y = n, color = habitat_method)) +
+  geom_line() +
+  scale_color_manual(values = habitat_source_colors) +
+  geom_line(data = import_concentration_n_countries, aes(x = year, y = n), color = "black") +
+  labs(x = "", y = paste("Number of countries comprising ", cumulative_percent_threshold, "% of imports", sep = ""), color = "Source") +
+  lims(y = c(0, 30)) +
+  theme_bw()
+
+import_n_countries_by_source_plot
 ```
 
 ```{r custom_artis_ts}

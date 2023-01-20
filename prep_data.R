@@ -17,6 +17,7 @@ library(tidytext)
 # Directory listing
 
 outdir <- "/Volumes/jgephart/ARTIS/Outputs/ms_seafood_globalization/20220111"
+outdir <- "outputs"
 
 #-------------------------------------------------------------------------------
 # Initial database pulls
@@ -433,6 +434,21 @@ bilateral_habitat_method_summary <- artis %>%
 
 write.csv(bilateral_habitat_method_summary, file.path(outdir, "bilateral_habitat_method_summary.csv"), row.names = FALSE)
 
+# Calculate percent of pairs with increased trade flows
+bilateral_flow_change <- bilateral_habitat_method_summary %>% 
+  filter(exporter_region != "Other nei", importer_region != "Other nei",
+         year %in% c(1996:2000, 2016:2020)) %>%
+  mutate(year_group = case_when(
+    year %in% 1996:2000 ~ "beginning", 
+    year %in% 2016:2020 ~ "end")) %>%
+  group_by(year_group, exporter_iso3c, importer_iso3c) %>% 
+  summarise(live_weight_t = sum(live_weight_t)) %>%
+  pivot_wider(names_from = year_group, values_from = live_weight_t, values_fill = 0) %>% 
+  mutate(change = end-beginning) %>%
+  arrange(desc(change))
+
+write.csv(bilateral_flow_change, file.path(outdir, "bilateral_flow_change.csv"), row.names = FALSE)
+
 # Top Exporters by habitat and production method
 # Year groups 1996 - 2000 and 2016 - 2020
 top_exporters_old <- bilateral_habitat_method_summary %>%
@@ -511,7 +527,7 @@ top_regional_export_change <- bilateral_habitat_method_summary %>%
   ungroup() %>%
   mutate(exporter_region = reorder_within(exporter_region, change, habitat_method))
 
-write.csv(top_regional_export_change, file.path(datadir, "top_regional_export_change.csv"), row.names = FALSE)
+write.csv(top_regional_export_change, file.path(outdir, "top_regional_export_change.csv"), row.names = FALSE)
 
 # Top Regional Import changes
 top_regional_import_change <- bilateral_habitat_method_summary %>% 
@@ -531,7 +547,7 @@ top_regional_import_change <- bilateral_habitat_method_summary %>%
   ungroup() %>%
   mutate(importer_region = reorder_within(importer_region, change, habitat_method))
 
-write.csv(top_regional_import_change, file.path(datadir, "top_regional_import_change.csv"), row.names = FALSE)
+write.csv(top_regional_import_change, file.path(outdir, "top_regional_import_change.csv"), row.names = FALSE)
 
 #-------------------------------------------------------------------------------
 # Top Export increase and decreases
@@ -633,6 +649,102 @@ regional_avg_annual_change <- artis_region %>%
   mutate(exporter_importer = fct_reorder(exporter_importer, slope))
 
 write.csv(regional_avg_annual_change, file.path(outdir, "regional_avg_annual_change.csv"), row.names = FALSE)
+#-------------------------------------------------------------------------------
+# Net exports from least developed countries as defined by the United Nations
+# LDC countries according to UN (https://www.un.org/development/desa/dpad/least-developed-country-category/ldcs-at-a-glance.html)
+LDC_countries <- c("Afghanistan", "Angola", "Bangladesh", "Benin", "Bhutan",
+                   "Burkina Faso", "Burundi", "Cambodia", "Central African Republic",
+                   "Chad", "Comoros", "Democratic Republic of the Congo", "Djibouti",
+                   "Eritrea", "Ethiopia", "Gambia", "Guinea", "Guinea-Bissau", "Haiti",
+                   "Kiribati", "Lao People’s Dem. Republic", "Lesotho", "Liberia",
+                   "Madagascar", "Malawi", "Mali", "Mauritania", "Mozambique",
+                   "Myanmar", "Nepal", "Niger", "Rwanda", "Sao Tome and Principe",
+                   "Senegal", "Sierra Leone", "Solomon Islands", "Somalia",
+                   "South Sudan", "Sudan", "Timor-Leste", "Togo", "Tuvalu",
+                   "Uganda", "United Republic of Tanzania", "Yemen", "Zambia")
+
+LDC_countries <- countrycode(LDC_countries, origin = "country.name", destination = "iso3c")
+
+ldc_habitat_method_summary <- bilateral_habitat_method_summary %>%
+  mutate(
+    importer_ldc = case_when(
+      (importer_iso3c %in% LDC_countries) ~ "LDC",
+      !(importer_iso3c %in% LDC_countries) ~ "non-LDC"),
+    exporter_ldc = case_when(
+      (exporter_iso3c %in% LDC_countries) ~ "LDC",
+      !(exporter_iso3c %in% LDC_countries) ~ "non-LDC")) %>%
+  group_by(year, exporter_ldc, importer_ldc, habitat_method) %>%
+  summarise(live_weight_t = sum(live_weight_t))
+
+ldc_net_habitat_method_summary <- ldc_habitat_method_summary %>%
+  ungroup() %>% 
+  filter(importer_ldc == "LDC", exporter_ldc == "non-LDC") %>% 
+  select(year, habitat_method, "ldc_import" = "live_weight_t") %>%
+  left_join(ldc_habitat_method_summary %>%
+              ungroup() %>%
+              filter(importer_ldc == "non-LDC", exporter_ldc == "LDC") %>% 
+              select(year, habitat_method, "ldc_export" = "live_weight_t"),
+            by = c("year", "habitat_method")) %>%
+  mutate(net_import = ldc_import-ldc_export,
+         net_export = ldc_export-ldc_import) %>%
+  filter(habitat_method != "unknown")
+
+write.csv(ldc_net_habitat_method_summary, file.path(outdir, "ldc_net_habitat_method_summary.csv"), row.names = FALSE)
+
+#-------------------------------------------------------------------------------
+# Concentration of trade by production source
+# measured as the number of countries comprising 75%
+
+# Set percent threshold
+cumulative_percent_threshold <- 75
+
+# Export concentration
+export_concentration_habitat_method <- bilateral_habitat_method_summary %>%
+  group_by(year, habitat_method, exporter_iso3c) %>%
+  summarise(live_weight_t = sum(live_weight_t)) %>%
+  arrange(year, habitat_method, desc(live_weight_t)) %>%
+  mutate(cumulative_percent = 100 * cumsum(live_weight_t) / sum(live_weight_t))
+
+write.csv(export_concentration_habitat_method, file.path(outdir, "export_concentration.csv"), row.names = FALSE)
+
+export_concentration_n_countries <- export_concentration_habitat_method %>%
+  filter(cumulative_percent < cumulative_percent_threshold) %>%
+  group_by(year, habitat_method) %>% 
+  tally()
+
+write.csv(export_concentration_n_countries, file.path(outdir, "export_concentration_n_countries.csv"), row.names = FALSE)
+
+export_concentration_habitat_method_n_countries <- export_concentration_habitat_method %>%
+  filter(cumulative_percent < cumulative_percent_threshold) %>%
+  group_by(year, habitat_method) %>% 
+  tally() %>%
+  filter(habitat_method != "unknown")
+
+write.csv(export_concentration_habitat_method_n_countries, file.path(outdir, "export_concentration_n_countries_by_source.csv"), row.names = FALSE)
+
+# Import concentration
+import_concentration_habitat_method <- bilateral_habitat_method_summary %>%
+  group_by(year, habitat_method, importer_iso3c) %>%
+  summarise(live_weight_t = sum(live_weight_t)) %>%
+  arrange(year, habitat_method, desc(live_weight_t)) %>%
+  mutate(cumulative_percent = 100*cumsum(live_weight_t)/sum(live_weight_t))
+
+write.csv(import_concentration_habitat_method, file.path(outdir, "import_concentration.csv"), row.names = FALSE)
+
+import_concentration_n_countries <- import_concentration_habitat_method %>%
+  filter(cumulative_percent < cumulative_percent_threshold) %>%
+  group_by(year) %>% 
+  tally()
+
+write.csv(import_concentration_n_countries, file.path(outdir, "import_concentration_n_countries.csv"), row.names = FALSE)
+
+import_concentration_habitat_method_n_countries <- import_concentration_habitat_method %>%
+  filter(cumulative_percent < cumulative_percent_threshold) %>%
+  group_by(year, habitat_method) %>% 
+  tally() %>%
+  filter(habitat_method != "unknown")
+
+write.csv(import_concentration_habitat_method_n_countries, file.path(outdir, "import_concentration_n_countries_by_source.csv"), row.names = FALSE)
 
 #-------------------------------------------------------------------------------
 # Custom ARTIS timeseries (based on different HS versions used)
@@ -675,3 +787,172 @@ artis_ts <- artis_ts %>%
   bind_rows(custom_ts)
 
 write.csv(artis_ts, file.path(outdir, "artis_ts.csv"), row.names = FALSE)
+
+#-------------------------------------------------------------------------------
+# how many countries report with at least 75% true species
+
+# Producers species_level production in the form of true species
+producer_species_level_percent <- prod %>%
+  ungroup() %>%
+  group_by(iso3c, year, sciname) %>%
+  summarize(production_t = sum(production_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(species_level = case_when(
+    str_detect(sciname, " ") ~ "true_species",
+    TRUE ~ "other"
+  )) %>%
+  group_by(iso3c, year, species_level) %>%
+  summarize(production_t = sum(production_t)) %>%
+  ungroup() %>%
+  group_by(iso3c, year) %>%
+  mutate(total_production_t = sum(production_t)) %>%
+  ungroup() %>%
+  mutate(percent_production = 100 * production_t / total_production_t)
+
+percent_true_species_cutoff <- 75
+
+# Number of producers with at least 75% production in true species
+true_species_reporters <- producer_species_level_percent %>%
+  group_by(year, iso3c) %>%
+  filter(percent_production == max(percent_production)) %>%
+  ungroup() %>%
+  mutate(producer_category = case_when(
+    species_level == "true_species" & percent_production >= percent_true_species_cutoff ~ "true_species_producer",
+    TRUE ~ "other_producer"
+  )) %>%
+  group_by(year, producer_category) %>%
+  tally() %>%
+  ungroup() %>%
+  mutate(producer_category = str_remove(producer_category, "_producer")) %>%
+  mutate(producer_category = case_when(
+    producer_category == "other" ~ "Other",
+    producer_category == "true_species" ~ "True Species",
+    TRUE ~ producer_category
+  ))
+
+
+true_species_reporters %>%
+  ggplot(aes(x = year, y = n, color = producer_category)) +
+  geom_line() +
+  theme_bw() +
+  labs(x = "Year", y = "Number of Producers", color = "Producer Category")
+
+#-------------------------------------------------------------------------------
+# Diversity measures for countries that report at least 75% of their production as true species
+
+true_species_producers <- producer_species_level_percent %>%
+  group_by(year, iso3c) %>%
+  filter(percent_production == max(percent_production)) %>%
+  ungroup() %>%
+  mutate(producer_category = case_when(
+    species_level == "true_species" & percent_production >= percent_true_species_cutoff ~ "true_species_producer",
+    TRUE ~ "other_producer"
+  )) %>%
+  filter(producer_category == "true_species_producer") %>%
+  select(iso3c, year) %>%
+  distinct()
+
+
+true_species_trade <- true_species_producers %>%
+  left_join(
+    artis,
+    by = c("iso3c" = "source_country_iso3c", "year")
+  )
+
+true_species_prod <- true_species_producers %>%
+  left_join(prod,
+            by = c("year", "iso3c"))
+
+
+# Supply / Consumption data
+true_species_supply <- calculate_supply(true_species_trade, 
+                             # Remove FM trade from supply calculations
+                             # filter(hs6 != "230120"), 
+                           true_species_prod %>% 
+                             rename(live_weight_t = production_t)) %>%
+  # Add habitat-method column
+  mutate(habitat_method = paste(habitat, method, sep =" ")) %>% 
+  mutate(habitat_method = case_when(
+    str_detect(habitat_method, "unknown") ~ "unknown", 
+    TRUE ~ habitat_method
+  )) %>% 
+  # Set factor levels
+  mutate(habitat_method = factor(habitat_method, levels = c("marine capture", "inland capture",
+                                                            "marine aquaculture", "inland aquaculture",
+                                                            "unknown" ))) %>% 
+  left_join(country_metadata %>% 
+              select(iso3c, "region" = "owid_region"), by = "iso3c") %>% 
+  mutate(supply_no_error = case_when(supply_no_error < 0 ~ 0,
+                                     TRUE ~ supply_no_error))
+
+#-------------------------------------------------------------------------------
+# Results
+#-------------------------------------------------------------------------------
+
+global_supply <- supply %>%
+  group_by(year) %>%
+  summarize(supply_no_error = sum(supply_no_error) / 1000000) %>%
+  ungroup()
+
+write.csv(global_supply, file.path(outdir, "global_supply.csv"), row.names = FALSE)
+
+regional_supply <- supply %>%
+  group_by(year, region) %>%
+  summarize(supply_no_error = sum(supply_no_error)) %>%
+  ungroup() %>%
+  group_by(year) %>%
+  mutate(supply_no_error_total = sum(supply_no_error)) %>%
+  ungroup() %>%
+  mutate(percent_supply = 100 * supply_no_error / supply_no_error_total)
+
+write.csv(regional_supply, file.path(outdir, "regional_supply.csv"), row.names = FALSE)
+
+regional_method_supplies <- supply %>%
+  filter(year == 2020) %>%
+  group_by(year, region, method) %>%
+  summarize(supply_no_error = sum(supply_no_error)) %>%
+  ungroup() %>%
+  group_by(year, region) %>%
+  mutate(region_supply = sum(supply_no_error)) %>%
+  ungroup() %>%
+  mutate(percent_supply = 100 * supply_no_error / region_supply) %>%
+  select(region, region_supply, method, percent_supply) %>%
+  pivot_wider(names_from = "method", values_from = "percent_supply")
+
+write.csv(regional_method_supplies, file.path(outdir, "regional_method_supplies.csv"), row.names = FALSE)
+
+method_supplies <- supply %>%
+  filter(year == 2020) %>%
+  group_by(method) %>%
+  summarize(supply_no_error = sum(supply_no_error)) %>%
+  ungroup() %>%
+  mutate(total_supply = sum(supply_no_error)) %>%
+  mutate(percent_supply = 100 * supply_no_error / total_supply)
+
+write.csv(method_supplies, file.path(outdir, "method_supplies.csv"), row.names = FALSE)
+
+habitat_method_supply <- supply %>%
+  group_by(year, habitat, method) %>%
+  summarize(supply_no_error = sum(supply_no_error)) %>%
+  ungroup() %>%
+  group_by(year) %>%
+  mutate(supply_no_error_total = sum(supply_no_error)) %>%
+  ungroup() %>%
+  mutate(percent_supply = 100 * supply_no_error / supply_no_error_total)
+
+write.csv(habitat_method_supply, file.path(outdir, "habitat_method_supply.csv"), row.names = FALSE)
+
+consumption_foreign <- supply %>%
+  filter(year == 1996 | year == 2020) %>%
+  group_by(year) %>%
+  summarize(supply_foreign = sum(supply_foreign),
+            supply_no_error = sum(supply_no_error)) %>%
+  ungroup() %>%
+  mutate(percent_supply = 100 * supply_foreign / supply_no_error)
+
+write.csv(consumption_foreign, file.path(outdir, "consumption_foreign.csv"), row.names = FALSE)
+
+
+
+
+
