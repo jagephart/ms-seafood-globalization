@@ -35,7 +35,21 @@ dbListTables(con)
 
 # ARTIS dataframe
 artis <- dbGetQuery(con, "SELECT * FROM snet") %>%
-  select(-record_id)
+  select(-record_id) 
+
+artis_fm <- artis %>% 
+  filter(hs6 == "230120") %>% 
+  group_by(year) %>%
+  summarise(live_weight_t = sum(live_weight_t, na.rm = TRUE),
+            product_weight_t = sum(product_weight_t, na.rm = TRUE))
+
+artis_nonfood <- artis %>% 
+  # Keep only FMFO and ornamental species
+  filter(hs6 %in% c("230120", "051191", "030110", "030111", "030119"))
+
+artis <- artis %>% 
+  # Remove FMFO and ornamental species
+  filter(!(hs6 %in% c("230120", "051191", "030110", "030111", "030119")))
 
 # Production dataframe
 prod <- dbGetQuery(con, "SELECT * FROM production") %>%
@@ -69,6 +83,12 @@ pop <- read.csv("/Volumes/jgephart/ARTIS/Outputs/clean_metadata/fao_annual_pop.c
 
 # write.csv(artis, file.path(outdir, "artis.csv"), row.names = FALSE)
 write.csv(prod, file.path(outdir, "prod.csv"), row.names = FALSE)
+
+# Write out the fishmeal trade data, aggregated by year, for summary stats
+write.csv(artis_fm, file.path(outdir, "artis_fm.csv"), row.names = FALSE)
+
+# Write out the bilater non-food trade data to use in supply calculations
+write.csv(artis_nonfood, file.path(outdir, "artis_fm.csv"), row.names = FALSE)
 
 #-------------------------------------------------------------------------------
 # Summarize cleaned FAO production data
@@ -267,10 +287,51 @@ write.csv(artis_region, file.path(outdir, "artis_region.csv"), row.names = FALSE
 #-------------------------------------------------------------------------------
 # Figure 3
 
+# Create calculate_supply function (small difference from version in explore_artis)
+calculate_supply <- function(artis_data, production_data){
+  exports <- artis_data %>%
+    group_by(year, exporter_iso3c, dom_source, sciname, method, habitat) %>%
+    summarise(live_weight_t = sum(live_weight_t)) %>%
+    mutate(dom_source = str_replace(dom_source, " ", "_")) %>%
+    pivot_wider(names_from = "dom_source", values_from = "live_weight_t")
+  
+  if (!("error_export" %in% colnames(exports))) {
+    exports$error_export <- NA
+  }
+  
+  imports <- artis_data %>%
+    group_by(year, importer_iso3c, sciname, method, habitat) %>%
+    summarise(imports_live_weight_t = sum(live_weight_t))
+  
+  supply <- exports %>%
+    full_join(imports, by = c("year", "exporter_iso3c" = "importer_iso3c", 
+                              "sciname", "method", "habitat")) %>%
+    full_join(production_data %>% 
+                rename(production_t = live_weight_t), by = c("year", "exporter_iso3c" = "iso3c", 
+                                                             "sciname", "method", "habitat")) 
+  
+  supply$foreign_export[is.na(supply$foreign_export)] <- 0
+  supply$domestic_export[is.na(supply$domestic_export)] <- 0
+  supply$error_export[is.na(supply$error_export)] <- 0
+  supply$imports_live_weight_t[is.na(supply$imports_live_weight_t)] <- 0
+  supply$production_t[is.na(supply$production_t)] <- 0
+  
+  supply <- supply %>%
+    mutate(supply = production_t + imports_live_weight_t - domestic_export - foreign_export - error_export,
+           supply_no_error = production_t + imports_live_weight_t - domestic_export - foreign_export, 
+           supply_domestic = production_t - domestic_export,
+           supply_foreign = imports_live_weight_t - foreign_export) %>%
+    rename("iso3c" = "exporter_iso3c") %>%
+    ungroup() %>%
+    mutate(supply_no_error = replace_na(supply_no_error, 0),
+           supply_domestic = replace_na(supply_domestic, 0),
+           supply_foreign = replace_na(supply_foreign, 0))
+  
+  return(supply)
+}
+
 # Supply / Consumption data
 supply <- calculate_supply(artis %>% 
-                             # Remove FM trade from supply calculations
-                             #filter(hs6 != "230120") %>%
                              rename(habitat = environment), 
                            prod %>% 
                              rename(live_weight_t = production_t)) %>%
@@ -707,9 +768,13 @@ export_concentration_habitat_method <- bilateral_habitat_method_summary %>%
 
 write.csv(export_concentration_habitat_method, file.path(outdir, "export_concentration.csv"), row.names = FALSE)
 
-export_concentration_n_countries <- export_concentration_habitat_method %>%
+export_concentration_n_countries <- bilateral_habitat_method_summary %>%
+  group_by(year, exporter_iso3c) %>%
+  summarise(live_weight_t = sum(live_weight_t)) %>%
+  arrange(year, desc(live_weight_t)) %>%
+  mutate(cumulative_percent = 100*cumsum(live_weight_t)/sum(live_weight_t)) %>%
   filter(cumulative_percent < cumulative_percent_threshold) %>%
-  group_by(year, habitat_method) %>% 
+  group_by(year) %>% 
   tally()
 
 write.csv(export_concentration_n_countries, file.path(outdir, "export_concentration_n_countries.csv"), row.names = FALSE)
@@ -731,7 +796,11 @@ import_concentration_habitat_method <- bilateral_habitat_method_summary %>%
 
 write.csv(import_concentration_habitat_method, file.path(outdir, "import_concentration.csv"), row.names = FALSE)
 
-import_concentration_n_countries <- import_concentration_habitat_method %>%
+import_concentration_n_countries <- bilateral_habitat_method_summary %>%
+  group_by(year, importer_iso3c) %>%
+  summarise(live_weight_t = sum(live_weight_t)) %>%
+  arrange(year, desc(live_weight_t)) %>%
+  mutate(cumulative_percent = 100*cumsum(live_weight_t)/sum(live_weight_t)) %>%
   filter(cumulative_percent < cumulative_percent_threshold) %>%
   group_by(year) %>% 
   tally()
@@ -787,6 +856,7 @@ artis_ts <- artis_ts %>%
   bind_rows(custom_ts)
 
 write.csv(artis_ts, file.path(outdir, "artis_ts.csv"), row.names = FALSE)
+write.csv(custom_ts, file.path(outdir, "custom_ts.csv"), row.names = FALSE)
 
 #-------------------------------------------------------------------------------
 # how many countries report with at least 75% true species
@@ -865,25 +935,23 @@ true_species_prod <- true_species_producers %>%
 
 
 # Supply / Consumption data
-true_species_supply <- calculate_supply(true_species_trade, 
-                             # Remove FM trade from supply calculations
-                             # filter(hs6 != "230120"), 
-                           true_species_prod %>% 
-                             rename(live_weight_t = production_t)) %>%
-  # Add habitat-method column
-  mutate(habitat_method = paste(habitat, method, sep =" ")) %>% 
-  mutate(habitat_method = case_when(
-    str_detect(habitat_method, "unknown") ~ "unknown", 
-    TRUE ~ habitat_method
-  )) %>% 
-  # Set factor levels
-  mutate(habitat_method = factor(habitat_method, levels = c("marine capture", "inland capture",
-                                                            "marine aquaculture", "inland aquaculture",
-                                                            "unknown" ))) %>% 
-  left_join(country_metadata %>% 
-              select(iso3c, "region" = "owid_region"), by = "iso3c") %>% 
-  mutate(supply_no_error = case_when(supply_no_error < 0 ~ 0,
-                                     TRUE ~ supply_no_error))
+# true_species_supply <- calculate_supply(true_species_trade, 
+#                            true_species_prod %>% 
+#                              rename(live_weight_t = production_t)) %>%
+#   # Add habitat-method column
+#   mutate(habitat_method = paste(habitat, method, sep =" ")) %>% 
+#   mutate(habitat_method = case_when(
+#     str_detect(habitat_method, "unknown") ~ "unknown", 
+#     TRUE ~ habitat_method
+#   )) %>% 
+#   # Set factor levels
+#   mutate(habitat_method = factor(habitat_method, levels = c("marine capture", "inland capture",
+#                                                             "marine aquaculture", "inland aquaculture",
+#                                                             "unknown" ))) %>% 
+#   left_join(country_metadata %>% 
+#               select(iso3c, "region" = "owid_region"), by = "iso3c") %>% 
+#   mutate(supply_no_error = case_when(supply_no_error < 0 ~ 0,
+#                                      TRUE ~ supply_no_error))
 
 #-------------------------------------------------------------------------------
 # Results
@@ -951,8 +1019,4 @@ consumption_foreign <- supply %>%
   mutate(percent_supply = 100 * supply_foreign / supply_no_error)
 
 write.csv(consumption_foreign, file.path(outdir, "consumption_foreign.csv"), row.names = FALSE)
-
-
-
-
 

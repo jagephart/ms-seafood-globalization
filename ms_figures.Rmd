@@ -25,8 +25,8 @@ library(tidytext)
 
 ```{r load_data}
 # Set directories
-datadir <- "/Volumes/jgephart/ARTIS/Outputs/ms_seafood_globalization/20220111"
-outdir <- "/Volumes/jgephart/ARTIS/Outputs/ms_seafood_globalization/outputs_20220111"
+datadir <- "outputs"
+outdir <- "outputs"
 ```
 
 ```{r color_palettes}
@@ -55,14 +55,6 @@ region_colors <- c(
 
 ```
 
-```{r load_drive_data}
-
-pop <- read.csv("/Volumes/jgephart/ARTIS/Outputs/clean_metadata/fao_annual_pop.csv") %>% 
-  left_join(country_metadata, by = c("iso3c")) %>%
-  select(iso3c, year, "region" = "owid_region", pop)
-
-```
-
 # Figure 1: Increases in global export of blue foods
 
 ## Figure 1 a: Exports of global marine and freshwater aquaculture and fishery products (t live weight equivalent) from 1996-2019
@@ -88,7 +80,7 @@ fig1a
 fig1b_data <- read.csv(file.path(datadir, "fig_1b_data.csv"))
 
 fig1b <- ggplot() +
-  geom_line(data = percent_export_by_source, aes(x = year, y = percent_export, color = habitat_method)) +
+  geom_line(data = fig1b_data, aes(x = year, y = percent_export, color = habitat_method)) +
   scale_color_manual(values = habitat_source_colors) +
   labs(y = "% Production Exported", x = "", color = "Source") +
   theme_bw()
@@ -133,7 +125,54 @@ artis_region_method <- read.csv(file.path(datadir, "artis_region_method.csv"))
 artis_region <- read.csv(file.path(datadir, "artis_region.csv"))
 ```
 
-```{r fig2a}
+```{r fig2a_v2}
+
+region_net_import <- artis_region_method %>% 
+  group_by(year, importer_region) %>%
+  summarise(import_live_weight_t = sum(live_weight_t, na.rm = TRUE)) %>%
+  rename(region = importer_region) %>%
+  left_join(artis_region_method %>% 
+              group_by(year, exporter_region) %>%
+              summarise(export_live_weight_t = sum(live_weight_t, na.rm = TRUE)) %>%
+              rename(region = exporter_region), by = c("year", "region")) %>%
+  mutate(net_import = import_live_weight_t-export_live_weight_t)
+  
+fig2a <- ggplot() +
+  geom_area(data = artis_region_method %>% 
+              select(-exporter_importer) %>%
+              pivot_longer(exporter_region:importer_region, 
+                           names_to = c("flow", "drop"), 
+                           values_to = "region", names_sep = "_") %>% 
+              filter(flow == "exporter") %>%
+              group_by(year, region, habitat_method) %>%
+              summarise(live_weight_t = sum(live_weight_t, na.rm = TRUE)), 
+            aes(x = year, y = -1*live_weight_t/1000000, fill = habitat_method)) +
+  geom_area(data = artis_region_method %>% 
+              select(-exporter_importer) %>%
+              pivot_longer(exporter_region:importer_region, 
+                           names_to = c("flow", "drop"), 
+                           values_to = "region", names_sep = "_") %>% 
+              filter(flow == "importer") %>%
+              group_by(year, region, habitat_method) %>%
+              summarise(live_weight_t = sum(live_weight_t, na.rm = TRUE)), 
+            aes(x = year, y = live_weight_t/1000000, fill = habitat_method)) +
+  scale_fill_manual(values = habitat_source_colors) +
+  geom_hline(yintercept = 0, color = "black", linewidth = 0.5, linetype = "dashed") +
+  geom_line(data = region_net_import, aes(x = year, y = net_import/1000000, color = "Net import"), linewidth = 1) +
+  scale_color_manual(values = "black") +
+  labs(x = "", y = "Trade (million t, live weight)", fill = "Source", color = "") +
+  guides(fill = guide_legend(nrow = 2)) +
+  theme_bw() +
+  theme(legend.position = "top",
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        strip.background = element_blank()) +
+  facet_wrap(~region, nrow = 1) 
+
+fig2a
+```
+
+
+```{r fig2a_old, eval=FALSE}
 # Imports by Region
 fig2a <- artis_region %>% 
   ggplot(aes(x = year, y = live_weight_t/1000000, fill = exporter_region)) +
@@ -157,19 +196,19 @@ fig2b <- artis_region_method %>%
   ggplot(aes(x = year, y = live_weight_t/1000000, fill = habitat_method)) +
   geom_area() +
   scale_fill_manual(values = habitat_source_colors) +
-  labs(x = "", y = "Trade (million t, live weight)", color = "Ave. annual change in export \n(1000 t live weight)") +
+  labs(x = "", y = "Trade (million t, live weight)", color = "Ave. annual change in export \n(1000 t live weight)",
+       fill = "Source") +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), 
         legend.position = "none",
-        strip.background = element_blank(),
-        plot.margin=unit(c(0,0,0,0), "cm")) +
+        strip.background = element_blank()) +
   facet_grid(rows = vars(exporter_region), cols = vars(importer_region), 
              labeller = label_wrap_gen(width = 5), scales = "free")
 
 fig2b
 ```
 
-```{r fig 2c}
+```{r fig2c, eval=FALSE}
 # Figure 2c
 # Exports by Region
 fig2c <- artis_region %>% 
@@ -188,7 +227,7 @@ fig2c <- artis_region %>%
 fig2c
 ```
 
-```{r fig2}
+```{r fig2_old, eval=FALSE}
 # Overall Figure 2
 ggarrange(ggarrange(fig2a, NULL,
                     ncol = 2, nrow = 1,
@@ -200,6 +239,17 @@ ggarrange(ggarrange(fig2a, NULL,
                     widths = c(4.5, 1), labels = c("b", "c")),
           ncol = 1, nrow = 2, 
           heights = c(1, 4.5))
+
+ggsave(file.path(outdir, "fig2.png"))
+```
+
+```{r fig2, fig.height=5, fig.width=4}
+# Overall Figure 2
+ggarrange(ggarrange(fig2a, NULL,
+                    ncol = 2, nrow = 1,
+                    widths = c(4.5, 0.2), labels = c("a", "")), 
+          fig2b, labels = c("", "b"),
+          ncol = 1, heights = c(1.75, 4))
 
 ggsave(file.path(outdir, "fig2.png"))
 ```
@@ -232,7 +282,8 @@ fig3b <- fig3b_data %>%
   scale_fill_manual(values = habitat_source_colors) +
   theme_bw() +
   theme(legend.position = "bottom",
-        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        strip.background = element_blank()) +
   facet_wrap(~region)
 
 fig3b
@@ -265,7 +316,8 @@ fig3d <- fig3d_data %>%
   facet_wrap(~region) +
   theme_bw() +
   theme(legend.position = "bottom",
-        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        strip.background = element_blank())
 
 fig3d
 ```
@@ -288,7 +340,7 @@ ggsave(file.path(outdir, "fig3.png"))
 
 
 ```{r fig4a}
-fig4a_data <- read.csv(file.path(datadir, "figa4a_data.csv"))
+fig4a_data <- read.csv(file.path(datadir, "fig4a_data.csv"))
 
 fig4a <- fig4a_data %>%
   ggplot(aes(x = year, y = shannon, color = source)) +
@@ -353,8 +405,8 @@ fig4
 
 ```{r si_top_exporters, fig.height = 4, fig.width = 4}
 
-top_exporters_old <- read.csv(file.path(datadir, "top_exporters_old.csv"), row.names = FALSE)
-top_exporters_recent <- read.csv(file.path(datadir, "top_exporters_recent.csv"), row.names = FALSE)
+top_exporters_old <- read.csv(file.path(datadir, "top_exporters_old.csv"))
+top_exporters_recent <- read.csv(file.path(datadir, "top_exporters_recent.csv"))
 
 exporters_old_plot <- top_exporters_old %>%
   ggplot(aes(x = live_weight_t/1000000, y = exporter_iso3c, fill = habitat_method)) +
@@ -389,8 +441,8 @@ ggsave(file.path(outdir, "si_top_exporters.png"))
 
 ```{r si_top_importers, fig.height = 4, fig.width = 4}
 
-top_importers_old <- read.csv(file.path(datadir, "top_importers_old.csv"), row.names = FALSE)
-top_importers_recent <- read.csv(file.path(datadir, "top_importers_recent.csv"), row.names = FALSE)
+top_importers_old <- read.csv(file.path(datadir, "top_importers_old.csv"))
+top_importers_recent <- read.csv(file.path(datadir, "top_importers_recent.csv"))
 
 importers_old_plot <- top_importers_old %>%
   ggplot(aes(x = live_weight_t/1000000, y = importer_iso3c, fill = habitat_method)) +
@@ -463,8 +515,8 @@ ggsave(file.path(outdir, "regional_changes.png"))
 ```
 
 ```{r si_export_decreases_increases, fig.height = 4, fig.width = 4}
-top_exporter_increases <- read.csv(file.path(datadir, "top_export_increases.csv"))
-top_exporter_decreases <- read.csv(file.path(datadir, "top_export_decreases.csv"))
+top_export_increases <- read.csv(file.path(datadir, "top_export_increases.csv"))
+top_export_decreases <- read.csv(file.path(datadir, "top_export_decreases.csv"))
 
 exporter_increases_plot <- top_export_increases %>%
   ggplot(aes(x = change/1000000, y = exporter_iso3c, fill = habitat_method, color = habitat_method)) +
@@ -496,8 +548,8 @@ ggsave(file.path(outdir, "si_export_changes.png"))
 ```
 
 ```{r si_import_decreases_increases, fig.height = 4, fig.width = 4}
-top_importer_increases <- read.csv(file.path(datadir, "top_import_increases.csv"))
-top_importer_decreases <- read.csv(file.path(datadir, "top_import_decreases.csv"))
+top_import_increases <- read.csv(file.path(datadir, "top_import_increases.csv"))
+top_import_decreases <- read.csv(file.path(datadir, "top_import_decreases.csv"))
 
 importer_increases_plot <- top_import_increases %>%
   ggplot(aes(x = change/1000000, y = importer_iso3c, fill = habitat_method, color = habitat_method)) +
@@ -560,26 +612,28 @@ ldc_net_exports_by_source_plot
 
 ```{r trade_concentration_n_countries}
 # Concentration of trade by production source, measured as the number of countries comprising 75%
+cumulative_percent_threshold <- 75
 
-export_n_countries_concentration <- read.csv(file.path(datadir, "export_concentration_n_countries_by_source.csv"))
-import_n_countries_concentration <- read.csv(file.path(datadir, "import_concentration_n_countries_by_source.csv"))
+export_n_countries_concentration <- read.csv(file.path(datadir, "export_concentration_n_countries.csv"))
+import_n_countries_concentration <- read.csv(file.path(datadir, "import_concentration_n_countries.csv"))
 
-export_n_countries_by_source_plot <- export_n_countries_concentration %>%
-  ggplot(aes(x = year, y = n, color = habitat_method)) +
-  geom_line() +
+export_n_countries_concentration_by_source <- read.csv(file.path(datadir, "export_concentration_n_countries_by_source.csv"))
+import_n_countries_concentration_by_source <- read.csv(file.path(datadir, "import_concentration_n_countries_by_source.csv"))
+
+export_n_countries_by_source_plot <- ggplot() +
+  geom_line(data = export_n_countries_concentration_by_source, aes(x = year, y = n, color = habitat_method)) +
   scale_color_manual(values = habitat_source_colors) +
-  geom_line(data = export_concentration_n_countries, aes(x = year, y = n), color = "black") +
+  geom_line(data = export_n_countries_concentration, aes(x = year, y = n), color = "black") +
   labs(x = "", y = paste("Number of countries comprising ", cumulative_percent_threshold, "% of exports", sep = ""), color = "Source") +
   lims(y = c(0, 30)) +
   theme_bw()
 
 export_n_countries_by_source_plot
 
-import_n_countries_by_source_plot <- import_n_countries_concentration %>%
-  ggplot(aes(x = year, y = n, color = habitat_method)) +
-  geom_line() +
+import_n_countries_by_source_plot <- ggplot() +
+  geom_line(data = import_n_countries_concentration_by_source, aes(x = year, y = n, color = habitat_method)) +
   scale_color_manual(values = habitat_source_colors) +
-  geom_line(data = import_concentration_n_countries, aes(x = year, y = n), color = "black") +
+  geom_line(data = import_n_countries_concentration, aes(x = year, y = n), color = "black") +
   labs(x = "", y = paste("Number of countries comprising ", cumulative_percent_threshold, "% of imports", sep = ""), color = "Source") +
   lims(y = c(0, 30)) +
   theme_bw()
