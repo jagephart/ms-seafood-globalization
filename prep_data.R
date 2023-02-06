@@ -17,7 +17,7 @@ library(tidytext)
 # Directory listing
 
 outdir <- "/Volumes/jgephart/ARTIS/Outputs/ms_seafood_globalization/20220111"
-outdir <- "outputs"
+outdir <- "outputs_20230206"
 
 #-------------------------------------------------------------------------------
 # Initial database pulls
@@ -336,6 +336,7 @@ consumption_dir <- "../ARTIS/consumption/consumption_max_per_capita_100kg"
 supply <- read.csv(file.path(consumption_dir, "summary_consumption.csv"))
 
 supply <- supply %>%
+  filter(!is.na(habitat) & !is.na(method)) %>%
   mutate(habitat_method = paste(habitat, method, sep = " ")) %>%
   mutate(habitat_method = case_when(
     str_detect(habitat_method, "unknown") ~ "unknown", 
@@ -354,20 +355,36 @@ supply <- supply %>%
     by = c("iso3c", "year")
   )
 
+global_pop <- pop %>%
+  filter(region != "Other nei") %>%
+  group_by(year) %>%
+  summarize(pop = sum(pop, na.rm = TRUE)) %>%
+  ungroup()
+
 # Figure 3a
 # Calculate per capita supply by region and source
-supply_total <- supply %>% 
+supply_total <- supply %>%
+  filter(!is.na(habitat_method)) %>%
   group_by(iso3c, region, year, habitat_method) %>%
-  summarise(supply = sum(supply),
+  summarise(supply = sum(supply_test),
             supply_domestic = sum(supply_domestic),
             supply_foreign = sum(supply_foreign),
             pop = sum(pop)
-  )
+  ) %>%
+  ungroup()
 
 fig3a_data <- supply_total %>%
+  filter(!is.na(habitat_method)) %>%
   filter(region != "Other nei") %>%
   group_by(year, habitat_method) %>%
-  summarise(supply_per_cap = 1000 * (sum(supply, na.rm = TRUE)) / sum(pop, na.rm = TRUE))
+  summarize(supply = sum(supply)) %>%
+  ungroup() %>%
+  left_join(
+    global_pop %>%
+      rename(year_global_pop = pop),
+    by = c("year")
+  ) %>%
+  mutate(supply_per_cap = 1000 * supply / year_global_pop)
 
 write.csv(fig3a_data, file.path(outdir, "fig3a_data.csv"), row.names = FALSE)
 
@@ -789,19 +806,23 @@ hs_versions <- c("96", "02", "07", "12", "17")
 
 artis_ts <- data.frame()
 
-for (i in 1:length(hs_versions)) {
-  curr_hs <- hs_versions[i]
-  print(curr_hs)
-  curr_fp <- file.path(hs_version_datadir, paste("HS", curr_hs, "/midpoint_artis_habitat_prod_ts_HS", curr_hs, ".csv", sep = ""))
-  curr_artis <- read.csv(curr_fp) %>%
-    mutate(hs_version = paste("HS", curr_hs, sep = "")) %>%
-    group_by(year, hs_version) %>%
-    summarize(live_weight_t = sum(live_weight_t, na.rm = TRUE)) %>%
-    ungroup()
-  
-  artis_ts <- artis_ts %>%
-    bind_rows(curr_artis)
-}
+artis_ts <- artis %>%
+  group_by(year, hs_version) %>%
+  summarize(live_weight_t = sum(live_weight_t, na.rm = TRUE))
+
+# for (i in 1:length(hs_versions)) {
+#   curr_hs <- hs_versions[i]
+#   print(curr_hs)
+#   curr_fp <- file.path(hs_version_datadir, paste("HS", curr_hs, "/midpoint_artis_habitat_prod_ts_HS", curr_hs, ".csv", sep = ""))
+#   curr_artis <- read.csv(curr_fp) %>%
+#     mutate(hs_version = paste("HS", curr_hs, sep = "")) %>%
+#     group_by(year, hs_version) %>%
+#     summarize(live_weight_t = sum(live_weight_t, na.rm = TRUE)) %>%
+#     ungroup()
+#   
+#   artis_ts <- artis_ts %>%
+#     bind_rows(curr_artis)
+# }
 
 custom_ts <- artis_ts %>%
   filter(
@@ -923,31 +944,31 @@ true_species_prod <- true_species_producers %>%
 
 global_supply <- supply %>%
   group_by(year) %>%
-  summarize(supply_no_error = sum(supply_no_error) / 1000000) %>%
+  summarize(supply = sum(supply) / 1000000) %>%
   ungroup()
 
 write.csv(global_supply, file.path(outdir, "global_supply.csv"), row.names = FALSE)
 
 regional_supply <- supply %>%
   group_by(year, region) %>%
-  summarize(supply_no_error = sum(supply_no_error)) %>%
+  summarize(supply = sum(supply)) %>%
   ungroup() %>%
   group_by(year) %>%
-  mutate(supply_no_error_total = sum(supply_no_error)) %>%
+  mutate(supply_total = sum(supply)) %>%
   ungroup() %>%
-  mutate(percent_supply = 100 * supply_no_error / supply_no_error_total)
+  mutate(percent_supply = 100 * supply / supply_total)
 
 write.csv(regional_supply, file.path(outdir, "regional_supply.csv"), row.names = FALSE)
 
 regional_method_supplies <- supply %>%
   filter(year == 2020) %>%
   group_by(year, region, method) %>%
-  summarize(supply_no_error = sum(supply_no_error)) %>%
+  summarize(supply = sum(supply)) %>%
   ungroup() %>%
   group_by(year, region) %>%
-  mutate(region_supply = sum(supply_no_error)) %>%
+  mutate(region_supply = sum(supply)) %>%
   ungroup() %>%
-  mutate(percent_supply = 100 * supply_no_error / region_supply) %>%
+  mutate(percent_supply = 100 * supply / region_supply) %>%
   select(region, region_supply, method, percent_supply) %>%
   pivot_wider(names_from = "method", values_from = "percent_supply")
 
@@ -956,21 +977,21 @@ write.csv(regional_method_supplies, file.path(outdir, "regional_method_supplies.
 method_supplies <- supply %>%
   filter(year == 2020) %>%
   group_by(method) %>%
-  summarize(supply_no_error = sum(supply_no_error)) %>%
+  summarize(supply = sum(supply)) %>%
   ungroup() %>%
-  mutate(total_supply = sum(supply_no_error)) %>%
-  mutate(percent_supply = 100 * supply_no_error / total_supply)
+  mutate(total_supply = sum(supply)) %>%
+  mutate(percent_supply = 100 * supply / total_supply)
 
 write.csv(method_supplies, file.path(outdir, "method_supplies.csv"), row.names = FALSE)
 
 habitat_method_supply <- supply %>%
   group_by(year, habitat, method) %>%
-  summarize(supply_no_error = sum(supply_no_error)) %>%
+  summarize(supply = sum(supply)) %>%
   ungroup() %>%
   group_by(year) %>%
-  mutate(supply_no_error_total = sum(supply_no_error)) %>%
+  mutate(supply_total = sum(supply)) %>%
   ungroup() %>%
-  mutate(percent_supply = 100 * supply_no_error / supply_no_error_total)
+  mutate(percent_supply = 100 * supply / supply_total)
 
 write.csv(habitat_method_supply, file.path(outdir, "habitat_method_supply.csv"), row.names = FALSE)
 
@@ -978,9 +999,9 @@ consumption_foreign <- supply %>%
   filter(year == 1996 | year == 2020) %>%
   group_by(year) %>%
   summarize(supply_foreign = sum(supply_foreign),
-            supply_no_error = sum(supply_no_error)) %>%
+            supply = sum(supply)) %>%
   ungroup() %>%
-  mutate(percent_supply = 100 * supply_foreign / supply_no_error)
+  mutate(percent_supply = 100 * supply_foreign / supply)
 
 write.csv(consumption_foreign, file.path(outdir, "consumption_foreign.csv"), row.names = FALSE)
 
