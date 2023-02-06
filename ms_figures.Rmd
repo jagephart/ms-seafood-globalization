@@ -21,6 +21,7 @@ library(broom)
 library(exploreARTIS)
 library(vegan)
 library(tidytext)
+library(cowplot)
 ```
 
 ```{r load_data}
@@ -273,9 +274,14 @@ fig2b <- artis_region_method %>%
   theme_bw() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), 
         legend.position = "none",
-        strip.background = element_blank()) +
+        strip.background = element_blank(), 
+        plot.margin = margin(t = 8, r = 8, l = 2, unit = "mm")) +
   facet_grid(rows = vars(exporter_region), cols = vars(importer_region), 
              labeller = label_wrap_gen(width = 5), scales = "free")
+
+fig2b <- ggdraw(fig2b) +
+  draw_label("Exporting region", x = 0.975, y = 0.5, angle = 270) +
+  draw_label("Importing region", x = 0.5, y = 0.975)
 
 fig2b
 ```
@@ -427,7 +433,7 @@ fig4a <- fig4a_data %>%
 fig4a
 ```
 
-```{r fig4b}
+```{r fig4b_old, eval=FALSE}
 fig4b_data <- read.csv(file.path(datadir, "fig4b_data.csv"))
 
 fig4b <- fig4b_data %>%
@@ -442,6 +448,51 @@ fig4b <- fig4b_data %>%
 
 fig4b
 ```
+
+```{r fig4b}
+# NOTE: Rahul - we need to have the correct file read in here. For reference, the file currently generating this and the new fig 4d is "/Volumes/jgephart/ARTIS/Outputs/diversity/max_per_capita_100kg/diversity.csv"
+# I am not sure we should go with these colors, but didn't have time to keep messing with this
+# These comments also apply to the new fig4c
+
+fig4b <- diversity %>% 
+  filter(year == 2019) %>%
+  select(iso3c, region, "Production" = "shannon_prod", "Imports" = "shannon_imports", "Exports" = "shannon_exports") %>% 
+  pivot_longer(Production:Exports, names_to = "shannon_var", values_to = "shannon_index") %>%
+  mutate(shannon_var = factor(shannon_var, levels = c("Production", "Imports", "Exports"))) %>%
+  ggplot(aes(x = shannon_var, y = shannon_index, fill = shannon_var)) +
+  geom_violin() + 
+  geom_point(alpha = 0.5) +
+  scale_fill_manual(values = c(habitat_source_colors[1], habitat_source_colors[3], habitat_source_colors[4])) +
+  labs(x = "", y = "Shannon index", fill = "") +
+  facet_wrap(~region, nrow=1) +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        strip.background = element_blank())
+
+fig4b
+```
+
+```{r fig4c}
+fig4c <- diversity %>% 
+  filter(year == 2019) %>%
+  select(iso3c, region, "Domestic" = "shannon_domestic", "Foreign" = "shannon_foreign") %>% 
+  pivot_longer(Domestic:Foreign, names_to = "shannon_var", values_to = "shannon_index") %>%
+  mutate(shannon_var = factor(shannon_var, levels = c("Domestic", "Foreign"))) %>%
+  ggplot(aes(x = shannon_var, y = shannon_index, fill = shannon_var)) +
+  geom_violin() + 
+  geom_point(alpha = 0.5) +
+  scale_fill_manual(values = c(habitat_source_colors[2], habitat_source_colors[4])) +
+  labs(x = "", y = "Shannon index", fill = "") +
+  facet_wrap(~region, nrow=1) +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        strip.background = element_blank())
+
+fig4c
+```
+
 
 ```{r fig4c}
 fig4c_data <- read.csv(file.path(datadir, "fig4c_data.csv"))
@@ -458,6 +509,8 @@ fig4c <- fig4c_data %>%
 
 fig4c
 ```
+
+
 ```{r fig4, fig.height = 3, fig.width = 3}
 fig4 <- ggarrange(fig4a, 
           ggarrange(fig4b,
