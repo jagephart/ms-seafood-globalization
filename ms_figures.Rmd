@@ -63,6 +63,9 @@ region_colors <- c(
 fig1a_data <- read.csv(file.path(datadir, "fig_1a_data.csv"))
 
 fig1a <- fig1a_data %>%
+  mutate(habitat_method = factor(habitat_method, 
+                                 levels = c("marine capture", "inland capture", 
+                                            "marine aquaculture", "inland aquaculture", "unknown"))) %>%
   ggplot(aes(x = year, y = live_weight_t/1000000, fill = habitat_method)) +
   geom_area() +
   scale_fill_manual(values = habitat_source_colors) +
@@ -77,7 +80,10 @@ fig1a
 ## Figure 1 b: Percent of global marine and freshwater aquaculture and fishery production exported, excluding re-exports
 
 ```{r fig1b}
-fig1b_data <- read.csv(file.path(datadir, "fig_1b_data.csv"))
+fig1b_data <- read.csv(file.path(datadir, "fig_1b_data.csv")) %>%
+    mutate(habitat_method = factor(habitat_method, 
+                                 levels = c("marine capture", "inland capture", 
+                                            "marine aquaculture", "inland aquaculture", "unknown"))) 
 
 fig1b <- ggplot() +
   geom_line(data = fig1b_data, aes(x = year, y = percent_export, color = habitat_method)) +
@@ -95,24 +101,81 @@ fig1b
 fig1c_data <- read.csv(file.path(datadir, "fig_1c_data.csv"))
 
 fig1c_out_degree <- fig1c_data %>%
+    mutate(habitat_method = factor(habitat_method, 
+                                 levels = c("marine capture", "inland capture", 
+                                            "marine aquaculture", "inland aquaculture", "unknown"))) %>%
   ggplot(aes(x = year, y = all_in_degree, color = habitat_method)) +
   geom_smooth() +
   scale_color_manual(values = habitat_source_colors) +
-  labs(y = "Out degree", color = "Source") + 
+  labs(y = "Average no. export partners", color = "Source") + 
   theme_bw()
 
 fig1c_out_degree
 ```
 
-```{r fig1, fig.height = 3, fig.width = 4.5}
+```{r fig1de}
+habitat_source_colors_v2 <- c("#F7AF75", # light orange = inland aquaculture
+                              "#86ADA7", # light blue = freshwater capture
+                              "#F37542", # medium orange = marine aquaculture
+                              "#1B708F", # blue = marine capture
+                              "black" # unknown
+                          )
+
+# Concentration of trade by production source, measured as the number of countries comprising 75%
+cumulative_percent_threshold <- 75
+
+export_n_countries_concentration <- read.csv(file.path(datadir, "export_concentration_n_countries.csv"))
+import_n_countries_concentration <- read.csv(file.path(datadir, "import_concentration_n_countries.csv"))
+
+export_n_countries_concentration_by_source <- read.csv(file.path(datadir, "export_concentration_n_countries_by_source.csv"))  
+import_n_countries_concentration_by_source <- read.csv(file.path(datadir, "import_concentration_n_countries_by_source.csv"))  %>% 
+      mutate(habitat_method = factor(habitat_method, 
+                                 levels = c("marine capture", "inland capture", 
+                                            "marine aquaculture", "inland aquaculture"))) 
+
+fig1d <- ggplot() +
+  geom_line(data = export_n_countries_concentration_by_source %>% 
+      mutate(habitat_method = factor(habitat_method, 
+                                 levels = c("marine capture", "inland capture", 
+                                            "marine aquaculture", "inland aquaculture"))), 
+      aes(x = year, y = n, color = habitat_method)) +
+  geom_line(data = export_n_countries_concentration, aes(x = year, y = n, color = "total"), linewidth = 1) +
+  scale_color_manual(values = habitat_source_colors_v2) +
+  labs(x = "", y = paste("No. countries comprising ", cumulative_percent_threshold, "% of exports", sep = ""), color = "Source") +
+  lims(y = c(0, 30)) +
+  theme_bw()
+
+fig1d
+
+fig1e <- ggplot() +
+  geom_line(data = import_n_countries_concentration_by_source %>% 
+              mutate(habitat_method = factor(habitat_method, 
+                                 levels = c("marine capture", "inland capture", 
+                                            "marine aquaculture", "inland aquaculture", "unknown"))), 
+      aes(x = year, y = n, color = habitat_method)) +
+  geom_line(data = import_n_countries_concentration, aes(x = year, y = n, color = "total"), linewidth = 1) +
+    scale_color_manual(values = habitat_source_colors_v2) +
+  labs(x = "", y = paste("No. countries comprising ", cumulative_percent_threshold, "% of imports", sep = ""), color = "Source") +
+  lims(y = c(0, 30)) +
+  theme_bw()
+
+fig1e
+```
+
+```{r fig1, fig.height = 5.75, fig.width = 4.5}
 ggarrange(fig1a,
           ggarrange(fig1b,
                     fig1c_out_degree,
                     ncol = 2, nrow = 1,
                     legend = "none",
                     labels = c("b", "c")),
+          ggarrange(fig1d,
+                    fig1e,
+                    ncol = 2, nrow = 1,
+                    legend = "none",
+                    labels = c("d", "e")),
           common.legend = TRUE, legend = "bottom",
-          ncol = 1, nrow = 2, labels = c("a", ""))
+          ncol = 1, nrow = 3, labels = c("a", ""))
 
 ggsave(file.path(outdir, "fig1.png"))
 ```
@@ -125,7 +188,7 @@ artis_region_method <- read.csv(file.path(datadir, "artis_region_method.csv"))
 artis_region <- read.csv(file.path(datadir, "artis_region.csv"))
 ```
 
-```{r fig2a_v2}
+```{r fig2a}
 
 region_net_import <- artis_region_method %>% 
   group_by(year, importer_region) %>%
@@ -139,6 +202,9 @@ region_net_import <- artis_region_method %>%
   
 fig2a <- ggplot() +
   geom_area(data = artis_region_method %>% 
+                mutate(habitat_method = factor(habitat_method, 
+                                 levels = c("marine capture", "inland capture", 
+                                            "marine aquaculture", "inland aquaculture", "unknown"))) %>%
               select(-exporter_importer) %>%
               pivot_longer(exporter_region:importer_region, 
                            names_to = c("flow", "drop"), 
@@ -148,6 +214,9 @@ fig2a <- ggplot() +
               summarise(live_weight_t = sum(live_weight_t, na.rm = TRUE)), 
             aes(x = year, y = -1*live_weight_t/1000000, fill = habitat_method)) +
   geom_area(data = artis_region_method %>% 
+                mutate(habitat_method = factor(habitat_method, 
+                                 levels = c("marine capture", "inland capture", 
+                                            "marine aquaculture", "inland aquaculture", "unknown"))) %>%
               select(-exporter_importer) %>%
               pivot_longer(exporter_region:importer_region, 
                            names_to = c("flow", "drop"), 
@@ -193,6 +262,9 @@ fig2a
 ```{r fig2b}
 # Matrix of plots showcasing inter-regional trade trends
 fig2b <- artis_region_method %>% 
+    mutate(habitat_method = factor(habitat_method, 
+                                 levels = c("marine capture", "inland capture", 
+                                            "marine aquaculture", "inland aquaculture", "unknown"))) %>%
   ggplot(aes(x = year, y = live_weight_t/1000000, fill = habitat_method)) +
   geom_area() +
   scale_fill_manual(values = habitat_source_colors) +
@@ -208,7 +280,7 @@ fig2b <- artis_region_method %>%
 fig2b
 ```
 
-```{r fig2c, eval=FALSE}
+```{r fig2c_old, eval=FALSE}
 # Figure 2c
 # Exports by Region
 fig2c <- artis_region %>% 
@@ -610,36 +682,6 @@ ldc_net_exports_by_source_plot <- ldc_net_habitat_method_summary %>%
 ldc_net_exports_by_source_plot
 ```
 
-```{r trade_concentration_n_countries}
-# Concentration of trade by production source, measured as the number of countries comprising 75%
-cumulative_percent_threshold <- 75
-
-export_n_countries_concentration <- read.csv(file.path(datadir, "export_concentration_n_countries.csv"))
-import_n_countries_concentration <- read.csv(file.path(datadir, "import_concentration_n_countries.csv"))
-
-export_n_countries_concentration_by_source <- read.csv(file.path(datadir, "export_concentration_n_countries_by_source.csv"))
-import_n_countries_concentration_by_source <- read.csv(file.path(datadir, "import_concentration_n_countries_by_source.csv"))
-
-export_n_countries_by_source_plot <- ggplot() +
-  geom_line(data = export_n_countries_concentration_by_source, aes(x = year, y = n, color = habitat_method)) +
-  scale_color_manual(values = habitat_source_colors) +
-  geom_line(data = export_n_countries_concentration, aes(x = year, y = n), color = "black") +
-  labs(x = "", y = paste("Number of countries comprising ", cumulative_percent_threshold, "% of exports", sep = ""), color = "Source") +
-  lims(y = c(0, 30)) +
-  theme_bw()
-
-export_n_countries_by_source_plot
-
-import_n_countries_by_source_plot <- ggplot() +
-  geom_line(data = import_n_countries_concentration_by_source, aes(x = year, y = n, color = habitat_method)) +
-  scale_color_manual(values = habitat_source_colors) +
-  geom_line(data = import_n_countries_concentration, aes(x = year, y = n), color = "black") +
-  labs(x = "", y = paste("Number of countries comprising ", cumulative_percent_threshold, "% of imports", sep = ""), color = "Source") +
-  lims(y = c(0, 30)) +
-  theme_bw()
-
-import_n_countries_by_source_plot
-```
 
 ```{r custom_artis_ts}
 
