@@ -16,7 +16,7 @@ library(tidytext)
 
 ```{r load_data}
 # Directory
-datadir <- "outputs"
+datadir <- "outputs_20230206"
 
 global_export_by_source <- read.csv(file.path(datadir, "global_export_by_source.csv"))
 all_degree_summary <- read.csv(file.path(datadir, "all_degree_summary.csv"))
@@ -63,12 +63,14 @@ artis_fm <- read.csv(file.path(datadir, "artis_fm.csv"))
 total_fmfo_1996 <- artis_fm %>%
   filter(year == 1996) %>%
   mutate(live_weight_t = live_weight_t/1000000) %>%
-  pull(live_weight_t)
+  pull(live_weight_t) %>%
+  sum(na.rm = TRUE)
 
 total_fmfo_2019 <- artis_fm %>%
   filter(year == 2019) %>%
   mutate(live_weight_t = live_weight_t/1000000) %>%
-  pull(live_weight_t)
+  pull(live_weight_t) %>%
+  sum(na.rm = TRUE)
 
 ```
 
@@ -182,19 +184,19 @@ global_supply <- read.csv(file.path(datadir, "global_supply.csv"))
 
 global_supply_1996 <- global_supply %>%
   filter(year == 1996) %>%
-  pull(supply_no_error)
+  pull(supply)
 
 global_supply_2020 <- global_supply %>%
   filter(year == 2020) %>%
-  pull(supply_no_error)
+  pull(supply)
 
 habitat_method_supply <- read.csv(file.path(datadir, "habitat_method_supply.csv"))
 
 tmp <- habitat_method_supply %>%
-  select(habitat, method, year, supply_no_error) %>%
+  select(habitat, method, year, supply) %>%
   filter(year == 1996 | year == 2020) %>%
   mutate(year = paste("year", year, sep = "_")) %>%
-  pivot_wider(names_from = year, values_from = supply_no_error) %>%
+  pivot_wider(names_from = year, values_from = supply) %>%
   mutate(percent_diff = 100 * (year_2020 - year_1996) / year_1996)
 
 inland_aqua_supply_change <- tmp %>%
@@ -244,10 +246,10 @@ foreign_consumption_end <- consumption_foreign %>%
 asia_farmed_year <- supply %>%
   filter(region == "Asia") %>%
   group_by(year, method) %>%
-  summarize(supply_no_error = sum(supply_no_error)) %>%
+  summarize(supply = sum(supply)) %>%
   ungroup() %>%
   filter(method == "capture" | method == "aquaculture") %>%
-  pivot_wider(names_from = method, values_from = supply_no_error) %>%
+  pivot_wider(names_from = method, values_from = supply) %>%
   filter(aquaculture > capture) %>%
   filter(year == min(year)) %>%
   pull(year)
