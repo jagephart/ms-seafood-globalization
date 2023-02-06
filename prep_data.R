@@ -331,47 +331,43 @@ calculate_supply <- function(artis_data, production_data){
 }
 
 # Supply / Consumption data
-supply <- calculate_supply(artis %>% 
-                             rename(habitat = environment), 
-                           prod %>% 
-                             rename(live_weight_t = production_t)) %>%
-  # Add habitat-method column
-  mutate(habitat_method = paste(habitat, method, sep =" ")) %>% 
+consumption_dir <- "/Volumes/jgephart/ARTIS/Outputs/consumption/consumption_max_per_capita_100kg"
+consumption_dir <- "../ARTIS/consumption/consumption_max_per_capita_100kg"
+supply <- read.csv(file.path(consumption_dir, "summary_consumption.csv"))
+
+supply <- supply %>%
+  mutate(habitat_method = paste(habitat, method, sep = " ")) %>%
   mutate(habitat_method = case_when(
     str_detect(habitat_method, "unknown") ~ "unknown", 
     TRUE ~ habitat_method
-  )) %>% 
+  )) %>%
   # Set factor levels
   mutate(habitat_method = factor(habitat_method, levels = c("marine capture", "inland capture",
                                                             "marine aquaculture", "inland aquaculture",
-                                                            "unknown" ))) %>% 
-  left_join(country_metadata %>% 
-              select(iso3c, "region" = "owid_region"), by = "iso3c") %>% 
-  mutate(supply_no_error = case_when(supply_no_error < 0 ~ 0,
-                                     TRUE ~ supply_no_error))
+                                                            "unknown" ))) %>%
+  rename(supply_domestic = domestic_consumption_t,
+         supply_foreign = foreign_consumption_t)
 
-write.csv(supply, file.path(outdir, "supply.csv"), row.names = FALSE)
+supply <- supply %>%
+  left_join(
+    pop,
+    by = c("iso3c", "year")
+  )
 
 # Figure 3a
 # Calculate per capita supply by region and source
 supply_total <- supply %>% 
   group_by(iso3c, region, year, habitat_method) %>%
   summarise(supply = sum(supply),
-            supply_no_error = sum(supply_no_error),
             supply_domestic = sum(supply_domestic),
             supply_foreign = sum(supply_foreign),
-            import = sum(imports_live_weight_t), 
-            domestic_export = sum(domestic_export),
-            foreign_export = sum(foreign_export),
-            error_export = sum(error_export), 
-            production_t = sum(production_t)
-  ) %>%
-  left_join(pop %>% select(-region), by = c("iso3c", "year"))
+            pop = sum(pop)
+  )
 
 fig3a_data <- supply_total %>%
   filter(region != "Other nei") %>%
   group_by(year, habitat_method) %>%
-  summarise(supply_per_cap = 1000 * (sum(supply_no_error, na.rm = TRUE))/sum(pop, na.rm = TRUE))
+  summarise(supply_per_cap = 1000 * (sum(supply, na.rm = TRUE)) / sum(pop, na.rm = TRUE))
 
 write.csv(fig3a_data, file.path(outdir, "fig3a_data.csv"), row.names = FALSE)
 
@@ -379,17 +375,17 @@ write.csv(fig3a_data, file.path(outdir, "fig3a_data.csv"), row.names = FALSE)
 fig3b_data <- supply_total %>%
   filter(region != "Other nei") %>%
   group_by(year, region, habitat_method) %>%
-  summarise(supply_per_cap = (sum(supply_no_error, na.rm = TRUE)) / sum(pop, na.rm = TRUE))
+  summarise(supply_per_cap = (sum(supply, na.rm = TRUE)) / sum(pop, na.rm = TRUE))
 
 write.csv(fig3b_data, file.path(outdir, "fig3b_data.csv"), row.names = FALSE)
 
 # Figure 3c
 # Global percent of supply that is domestic/foreign
-fig3c_data <- supply %>% 
+fig3c_data <- supply %>%
   filter(region != "Other nei") %>%
-  group_by( year) %>%
-  summarise(supply_domestic = 100 * sum(supply_domestic) / sum(supply_no_error),
-            supply_foreign = 100 * sum(supply_foreign) / sum(supply_no_error)) %>%
+  group_by(year) %>%
+  summarise(supply_domestic = 100 * sum(supply_domestic) / sum(supply),
+            supply_foreign = 100 * sum(supply_foreign) / sum(supply)) %>%
   pivot_longer(cols = supply_domestic:supply_foreign, 
                names_to = "supply_source", values_to = "supply_percent") %>%
   mutate(supply_source = gsub("supply_", "", supply_source))
@@ -401,8 +397,8 @@ write.csv(fig3c_data, file.path(outdir, "fig3c_data.csv"), row.names = FALSE)
 fig3d_data <- supply %>% 
   filter(region != "Other nei") %>%
   group_by(region, year) %>%
-  summarise(supply_domestic = 100*sum(supply_domestic)/sum(supply_no_error),
-            supply_foreign = 100*sum(supply_foreign)/sum(supply_no_error)) %>%
+  summarise(supply_domestic = 100*sum(supply_domestic)/sum(supply),
+            supply_foreign = 100*sum(supply_foreign)/sum(supply)) %>%
   pivot_longer(cols = supply_domestic:supply_foreign, 
                names_to = "supply_source", values_to = "supply_percent") %>%
   mutate(supply_source = gsub("supply_", "", supply_source))
@@ -412,40 +408,8 @@ write.csv(fig3d_data, file.path(outdir, "fig3d_data.csv"), row.names = FALSE)
 #-------------------------------------------------------------------------------
 # Figure 4
 # Relationship between trade and supply diversity
-
-# Calculate diversity indices
-diversity <- supply %>%
-  filter(supply_domestic > 0, supply_foreign > 0) %>%
-  group_by(iso3c, region, year, sciname) %>%
-  summarise(supply_no_error = sum(supply_no_error), 
-            supply_domestic = sum(supply_domestic),
-            supply_foreign = sum(supply_foreign),
-            production_t = sum(production_t), 
-            imports_live_weight_t = sum(imports_live_weight_t)) %>%
-  ungroup(sciname) %>%
-  mutate(shannon_supply_no_error = diversity(supply_no_error),
-         shannon_supply_domestic = diversity(supply_domestic),
-         shannon_supply_foreign = diversity(supply_foreign),
-         shannon_prod = diversity(production_t),
-         shannon_imports = diversity(imports_live_weight_t)) %>%
-  select(iso3c, year, shannon_supply_no_error,
-         shannon_supply_domestic, shannon_supply_foreign,
-         shannon_prod, shannon_imports) %>%
-  distinct() 
-
-total_trade <- supply %>%
-  filter(supply_domestic > 0, supply_foreign > 0) %>%
-  group_by(region, iso3c, year) %>%
-  summarise(supply_domestic = sum(supply_domestic),
-            supply_foreign = sum(supply_foreign),
-            production_t = sum(production_t), 
-            imports_live_weight_t = sum(imports_live_weight_t),
-            domestic_export = sum(domestic_export),
-            foreign_export = sum(foreign_export),
-            error_export = sum(error_export)) 
-
-diversity <- diversity %>%
-  left_join(total_trade, by = c("region", "iso3c", "year"))
+diversity_dir <- "/Volumes/jgephart/ARTIS/Outputs/diversity/max_per_capita_100kg"
+diversity <- read.csv(file.path(diversity_dir, "diversity.csv"))
 
 # Figure 4a
 # Time series of the Shannon diversity of imported blue foods and produced blue foods by region.
