@@ -492,6 +492,27 @@ write.csv(fig4c_data, file.path(outdir, "fig4c_data.csv"), row.names = FALSE)
 # SUPPLEMENTARY FIGURES
 #-------------------------------------------------------------------------------
 
+regional_artis <- artis %>%
+  rename(habitat = environment) %>%
+  group_by(exporter_iso3c, importer_iso3c, habitat, method, year) %>%
+  summarize(live_weight_t = sum(live_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  left_join(
+    country_metadata %>%
+      select(exporter_iso3c = iso3c, exporter_region = owid_region),
+    by = c("exporter_iso3c")
+  ) %>%
+  left_join(
+    country_metadata %>%
+      select(importer_iso3c = iso3c, importer_region = owid_region),
+    by = c("importer_iso3c")
+  ) %>%
+  group_by(exporter_region, importer_region, habitat, method, year) %>%
+  summarize(live_weight_t = sum(live_weight_t, na.rm = TRUE)) %>%
+  ungroup()
+
+write.csv(regional_artis, file.path(outdir, "regional_artis_by_source.csv"), row.names = FALSE)
+
 # Top Trading Partners old (1996 - 2000) vs recent (2016 - 2020)
 # Summarize total imports and exports by habitat and environment
 bilateral_habitat_method_summary <- artis %>%
