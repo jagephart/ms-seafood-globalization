@@ -371,6 +371,8 @@ global_supply_per_cap <- supply %>%
   ) %>%
   mutate(per_cap = 1000 * supply / pop)
 
+write.csv(global_supply_per_cap, file.path(outdir, "global_supply_per_cap.csv"), row.names = FALSE)
+
 # Figure 3a
 # Calculate per capita supply by region and source
 supply_total <- supply %>%
