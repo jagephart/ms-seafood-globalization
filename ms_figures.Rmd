@@ -461,7 +461,7 @@ fig4b
 # NOTE: Rahul - we need to have the correct file read in here. For reference, the file currently generating this and the new fig 4d is "/Volumes/jgephart/ARTIS/Outputs/diversity/max_per_capita_100kg/diversity.csv"
 # I am not sure we should go with these colors, but didn't have time to keep messing with this
 # These comments also apply to the new fig4c
-
+diversity <- read.csv("/Volumes/jgephart/ARTIS/Outputs/diversity/max_per_capita_100kg/diversity.csv")
 fig4b <- diversity %>% 
   filter(year == 2019) %>%
   select(iso3c, region, "Production" = "shannon_prod", "Imports" = "shannon_imports", "Exports" = "shannon_exports") %>% 

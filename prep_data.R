@@ -850,30 +850,26 @@ write.csv(import_concentration_habitat_method_n_countries, file.path(outdir, "im
 # Custom ARTIS timeseries (based on different HS versions used)
 
 hs_version_datadir <- "/Volumes/jgephart/ARTIS/Outputs/S_net/snet_20221129/snet"
-hs_version_datadir <- "outputs_20230206"
 
 # Based on snet midpoint estimation
 hs_versions <- c("96", "02", "07", "12", "17")
 
 artis_ts <- data.frame()
 
-artis_ts <- artis %>%
-  group_by(year, hs_version) %>%
-  summarize(live_weight_t = sum(live_weight_t, na.rm = TRUE))
+for (i in 1:length(hs_versions)) {
+  curr_hs <- hs_versions[i]
+  print(curr_hs)
+  curr_fp <- file.path(hs_version_datadir, paste("HS", curr_hs, "/midpoint_artis_habitat_prod_ts_HS", curr_hs, ".csv", sep = ""))
+  print(curr_fp)
+  curr_artis <- read.csv(curr_fp) %>%
+    mutate(hs_version = paste("HS", curr_hs, sep = "")) %>%
+    group_by(year, hs_version) %>%
+    summarize(live_weight_t = sum(live_weight_t, na.rm = TRUE)) %>%
+    ungroup()
 
-# for (i in 1:length(hs_versions)) {
-#   curr_hs <- hs_versions[i]
-#   print(curr_hs)
-#   curr_fp <- file.path(hs_version_datadir, paste("HS", curr_hs, "/midpoint_artis_habitat_prod_ts_HS", curr_hs, ".csv", sep = ""))
-#   curr_artis <- read.csv(curr_fp) %>%
-#     mutate(hs_version = paste("HS", curr_hs, sep = "")) %>%
-#     group_by(year, hs_version) %>%
-#     summarize(live_weight_t = sum(live_weight_t, na.rm = TRUE)) %>%
-#     ungroup()
-#   
-#   artis_ts <- artis_ts %>%
-#     bind_rows(curr_artis)
-# }
+  artis_ts <- artis_ts %>%
+    bind_rows(curr_artis)
+}
 
 custom_ts <- artis_ts %>%
   filter(
