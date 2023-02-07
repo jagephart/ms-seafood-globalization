@@ -22,6 +22,7 @@ library(exploreARTIS)
 library(vegan)
 library(tidytext)
 library(cowplot)
+library(scales)
 ```
 
 ```{r load_data}
@@ -163,7 +164,7 @@ fig1e <- ggplot() +
 fig1e
 ```
 
-```{r fig1, fig.height = 12, fig.width = 7.5}
+```{r fig1, fig.height = 7, fig.width = 5}
 ggarrange(fig1a,
           ggarrange(fig1b,
                     fig1c_out_degree,
@@ -321,7 +322,7 @@ ggarrange(ggarrange(fig2a, NULL,
 ggsave(file.path(outdir, "fig2.png"))
 ```
 
-```{r fig2, fig.height=8, fig.width=7}
+```{r fig2, fig.height=4, fig.width=3}
 # Overall Figure 2
 ggarrange(ggarrange(fig2a, NULL,
                     ncol = 2, nrow = 1,
@@ -408,7 +409,7 @@ fig3d <- fig3d_data %>%
 fig3d
 ```
 
-```{r fig3, fig.height = 6, weight = 8}
+```{r fig3, fig.height = 4, fig.width = 5}
 fig3 <- ggarrange(
   ggarrange(fig3a, fig3b, 
             common.legend = TRUE, nrow = 1, widths = c(1, 2),
@@ -425,7 +426,7 @@ ggsave(file.path(outdir, "fig3.png"))
 ```
 
 
-```{r fig4a}
+```{r fig4a_old, eval = FALSE}
 fig4a_data <- read.csv(file.path(datadir, "fig4a_data.csv"))
 
 fig4a <- fig4a_data %>%
@@ -438,6 +439,27 @@ fig4a <- fig4a_data %>%
         axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
   facet_wrap(~region)
 
+fig4a
+```
+
+```{r fig4a}
+diversity <- read.csv("/Volumes/jgephart/ARTIS/Outputs/diversity/max_per_capita_100kg/diversity.csv")
+fig4a <- diversity %>% 
+  filter(year == 2019) %>%
+  select(iso3c, region, "Production" = "shannon_prod", "Imports" = "shannon_imports", "Exports" = "shannon_exports") %>% 
+  pivot_longer(Production:Exports, names_to = "shannon_var", values_to = "shannon_index") %>%
+  mutate(shannon_var = factor(shannon_var, levels = c("Production", "Imports", "Exports"))) %>%
+  ggplot(aes(x = shannon_var, y = shannon_index, fill = shannon_var)) +
+  geom_violin() + 
+  geom_point(alpha = 0.5) +
+  scale_fill_manual(values = c(habitat_source_colors[1], habitat_source_colors[3], habitat_source_colors[4])) +
+  labs(x = "", y = "Shannon index", fill = "") +
+  facet_wrap(~region, nrow=1) +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        strip.background = element_blank())
+  
 fig4a
 ```
 
@@ -458,31 +480,7 @@ fig4b
 ```
 
 ```{r fig4b}
-# NOTE: Rahul - we need to have the correct file read in here. For reference, the file currently generating this and the new fig 4d is "/Volumes/jgephart/ARTIS/Outputs/diversity/max_per_capita_100kg/diversity.csv"
-# I am not sure we should go with these colors, but didn't have time to keep messing with this
-# These comments also apply to the new fig4c
-diversity <- read.csv("/Volumes/jgephart/ARTIS/Outputs/diversity/max_per_capita_100kg/diversity.csv")
 fig4b <- diversity %>% 
-  filter(year == 2019) %>%
-  select(iso3c, region, "Production" = "shannon_prod", "Imports" = "shannon_imports", "Exports" = "shannon_exports") %>% 
-  pivot_longer(Production:Exports, names_to = "shannon_var", values_to = "shannon_index") %>%
-  mutate(shannon_var = factor(shannon_var, levels = c("Production", "Imports", "Exports"))) %>%
-  ggplot(aes(x = shannon_var, y = shannon_index, fill = shannon_var)) +
-  geom_violin() + 
-  geom_point(alpha = 0.5) +
-  scale_fill_manual(values = c(habitat_source_colors[1], habitat_source_colors[3], habitat_source_colors[4])) +
-  labs(x = "", y = "Shannon index", fill = "") +
-  facet_wrap(~region, nrow=1) +
-  theme_bw() +
-  theme(legend.position = "bottom",
-        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
-        strip.background = element_blank())
-
-fig4b
-```
-
-```{r fig4c}
-fig4c <- diversity %>% 
   filter(year == 2019) %>%
   select(iso3c, region, "Domestic" = "shannon_domestic", "Foreign" = "shannon_foreign") %>% 
   pivot_longer(Domestic:Foreign, names_to = "shannon_var", values_to = "shannon_index") %>%
@@ -502,33 +500,60 @@ fig4c
 ```
 
 
-```{r fig4c_old}
-fig4c_data <- read.csv(file.path(datadir, "fig4c_data.csv"))
+```{r fig4d}
+fig4d_data <- read.csv(file.path(datadir, "fig4c_data.csv"))
 
-fig4c <- fig4c_data %>%
+fig4d <- fig4d_data %>%
+  # total supply greater than 1 tonne (FIXIT update manuscript caption)
+  filter(supply > 1) %>%
   ggplot(aes(x = imports/1000000, y = shannon_supply, color = region)) +
   geom_point(alpha = 0.7) +
-  scale_x_log10() +
+  scale_x_log10(breaks = trans_breaks("log10", function(x) 10^x),
+              labels = trans_format("log10", math_format(10^.x))) +
+  annotation_logticks(sides = "b") +
   scale_color_manual(values = region_colors) +
   theme_minimal() +
   labs(x = "Total imports (million t, live weight)",
        y = "Supply diversity",
        color = "")
 
-fig4c
+# 
+
+fig4d
+```
+```{r fig4e}
+fig4e_data <- read.csv(file.path(datadir, "fig4c_data.csv"))
+
+fig4e <- fig4e_data %>%
+  # total supply greater than 1 tonne (FIXIT update manuscript caption)
+  filter(supply > 1) %>%
+  ggplot(aes(x = exports/1000000, y = shannon_supply, color = region)) +
+  geom_point(alpha = 0.7) +
+  scale_x_log10(breaks = trans_breaks("log10", function(x) 10^x),
+              labels = trans_format("log10", math_format(10^.x))) +
+  annotation_logticks(sides = "b") +
+  scale_color_manual(values = region_colors) +
+  theme_minimal() +
+  labs(x = "Total exports (million t, live weight)",
+       y = "Supply diversity",
+       color = "")
+
+# 
+
+fig4e
 ```
 
-
-```{r fig4, fig.height = 8, fig.width = 12}
-fig4 <- ggarrange(fig4a, 
-          ggarrange(fig4b,
-                    fig4c,
+```{r fig4, fig.height = 7, fig.width = 7}
+fig4 <- ggarrange(fig4a,
+                  fig4b,
+          ggarrange(fig4d,
+                    fig4e,
                     nrow = 1,
                     common.legend = TRUE, 
                     legend = "bottom",
-                    labels = c("b", "c")),
-          nrow = 2,
-          labels = c("a", "", "")
+                    labels = c("c", "d")),
+          nrow = 3,
+          labels = c("a", "b", "")
           )
 
 fig4
@@ -555,6 +580,7 @@ exporters_old_plot <- top_exporters_old %>%
   scale_fill_manual(values = habitat_source_colors) +
   scale_y_reordered() +
   labs(y = "", x = "Live weight (million t)") +
+  xlim(c(0,6)) +
   facet_wrap(~habitat_method, ncol = 1, scales = "free_y") +
   theme_minimal() +
   theme(legend.position = "none")
@@ -574,7 +600,7 @@ ggarrange(
   exporters_old_plot,
   exporters_recent_plot,
   ncol = 2,
-  labels = c("Old", "Recent")
+  labels = c("'96-'00", "'16-'20")
 )
 
 ggsave(file.path(outdir, "si_top_exporters.png"))
