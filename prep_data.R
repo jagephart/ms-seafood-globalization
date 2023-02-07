@@ -361,12 +361,22 @@ global_pop <- pop %>%
   summarize(pop = sum(pop, na.rm = TRUE)) %>%
   ungroup()
 
+global_supply_per_cap <- supply %>%
+  group_by(year) %>%
+  summarize(supply = sum(supply)) %>%
+  ungroup() %>%
+  left_join(
+    global_pop,
+    by = c("year")
+  ) %>%
+  mutate(per_cap = 1000 * supply / pop)
+
 # Figure 3a
 # Calculate per capita supply by region and source
 supply_total <- supply %>%
   filter(!is.na(habitat_method)) %>%
   group_by(iso3c, region, year, habitat_method) %>%
-  summarise(supply = sum(supply_test),
+  summarise(supply = sum(supply),
             supply_domestic = sum(supply_domestic),
             supply_foreign = sum(supply_foreign),
             pop = sum(pop)
@@ -389,10 +399,26 @@ fig3a_data <- supply_total %>%
 write.csv(fig3a_data, file.path(outdir, "fig3a_data.csv"), row.names = FALSE)
 
 # Figure 3b
-fig3b_data <- supply_total %>%
+# fig3b_data <- supply_total %>%
+#   filter(region != "Other nei") %>%
+#   group_by(year, region, habitat_method) %>%
+#   summarise(supply_per_cap = 1000 * (sum(supply, na.rm = TRUE)) / sum(pop, na.rm = TRUE))
+
+regional_pop <- pop %>%
+  group_by(region, year) %>%
+  summarize(pop = sum(pop)) %>%
+  ungroup()
+
+fig3b_data <- supply %>%
   filter(region != "Other nei") %>%
   group_by(year, region, habitat_method) %>%
-  summarise(supply_per_cap = (sum(supply, na.rm = TRUE)) / sum(pop, na.rm = TRUE))
+  summarize(supply = sum(supply)) %>%
+  ungroup() %>%
+  left_join(
+    regional_pop,
+    by = c("region", "year")
+  ) %>%
+  mutate(supply_per_cap = 1000 * supply / pop)
 
 write.csv(fig3b_data, file.path(outdir, "fig3b_data.csv"), row.names = FALSE)
 
@@ -567,7 +593,10 @@ top_regional_export_change <- bilateral_habitat_method_summary %>%
   group_by(habitat_method) %>%
   slice_max(n = 10, order_by = change) %>%
   ungroup() %>%
-  mutate(exporter_region = reorder_within(exporter_region, change, habitat_method))
+  group_by(habitat_method) %>%
+  mutate(ranking = rank(change)) %>%
+  ungroup() %>%
+  mutate(exporter_region = reorder_within(exporter_region, ranking, habitat_method))
 
 write.csv(top_regional_export_change, file.path(outdir, "top_regional_export_change.csv"), row.names = FALSE)
 
@@ -587,6 +616,9 @@ top_regional_import_change <- bilateral_habitat_method_summary %>%
   group_by(habitat_method) %>%
   slice_max(n = 10, order_by = change) %>%
   ungroup() %>%
+  group_by(habitat_method) %>%
+  mutate(ranking = rank(change)) %>%
+  ungroup() %>%
   mutate(importer_region = reorder_within(importer_region, change, habitat_method))
 
 write.csv(top_regional_import_change, file.path(outdir, "top_regional_import_change.csv"), row.names = FALSE)
@@ -603,7 +635,10 @@ top_exporter_change <- bilateral_habitat_method_summary %>%
   summarise(live_weight_t = sum(live_weight_t)) %>%
   pivot_wider(names_from = year_group, values_from = live_weight_t) %>% 
   mutate(change = end-beginning) %>% 
-  arrange(desc(change))
+  arrange(desc(change)) %>%
+  group_by(habitat_method) %>%
+  mutate(ranking = rank(change)) %>%
+  ungroup()
 
 write.csv(top_exporter_change, file.path(outdir, "top_exporter_change.csv"), row.names = FALSE)
 
@@ -612,6 +647,9 @@ top_export_increases <- top_exporter_change %>%
   ungroup() %>%
   group_by(habitat_method) %>%
   slice_max(n = 10, order_by = change) %>%
+  ungroup() %>%
+  group_by(habitat_method) %>%
+  mutate(ranking = rank(change)) %>%
   ungroup() %>%
   mutate(exporter_iso3c = reorder_within(exporter_iso3c, change, habitat_method))
 
@@ -622,6 +660,9 @@ top_export_decreases <- top_exporter_change %>%
   ungroup() %>%
   group_by(habitat_method) %>%
   slice_min(n = 10, order_by = change) %>%
+  ungroup() %>%
+  group_by(habitat_method) %>%
+  mutate(ranking = rank(change)) %>%
   ungroup() %>%
   mutate(exporter_iso3c = reorder_within(exporter_iso3c, change, habitat_method))
 
@@ -639,7 +680,10 @@ top_importer_change <- bilateral_habitat_method_summary %>%
   summarise(live_weight_t = sum(live_weight_t)) %>%
   pivot_wider(names_from = year_group, values_from = live_weight_t) %>% 
   mutate(change = end-beginning) %>% 
-  arrange(desc(change))
+  arrange(desc(change)) %>%
+  group_by(habitat_method) %>%
+  mutate(ranking = rank(change)) %>%
+  ungroup()
 
 write.csv(top_importer_change, file.path(outdir, "top_importer_change.csv"), row.names = FALSE)
 
@@ -648,6 +692,9 @@ top_import_increases <- top_importer_change %>%
   ungroup() %>%
   group_by(habitat_method) %>%
   slice_max(n = 10, order_by = change) %>%
+  ungroup() %>%
+  group_by(habitat_method) %>%
+  mutate(ranking = rank(change)) %>%
   ungroup() %>%
   mutate(importer_iso3c = reorder_within(importer_iso3c, change, habitat_method))
 
@@ -658,6 +705,9 @@ top_import_decreases <- top_importer_change %>%
   ungroup() %>%
   group_by(habitat_method) %>%
   slice_min(n = 10, order_by = change) %>%
+  ungroup() %>%
+  group_by(habitat_method) %>%
+  mutate(ranking = rank(change)) %>%
   ungroup() %>%
   mutate(importer_iso3c = reorder_within(importer_iso3c, change, habitat_method))
 
@@ -800,6 +850,7 @@ write.csv(import_concentration_habitat_method_n_countries, file.path(outdir, "im
 # Custom ARTIS timeseries (based on different HS versions used)
 
 hs_version_datadir <- "/Volumes/jgephart/ARTIS/Outputs/S_net/snet_20221129/snet"
+hs_version_datadir <- "outputs_20230206"
 
 # Based on snet midpoint estimation
 hs_versions <- c("96", "02", "07", "12", "17")
@@ -941,6 +992,8 @@ true_species_prod <- true_species_producers %>%
 #-------------------------------------------------------------------------------
 # Results
 #-------------------------------------------------------------------------------
+
+write.csv(supply, file.path(outdir, "supply.csv"), row.names = FALSE)
 
 global_supply <- supply %>%
   group_by(year) %>%
