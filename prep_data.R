@@ -331,9 +331,9 @@ calculate_supply <- function(artis_data, production_data){
 }
 
 # Supply / Consumption data
-consumption_dir <- "/Volumes/jgephart/ARTIS/Outputs/consumption/consumption_max_per_capita_100kg"
-consumption_dir <- "../ARTIS/consumption/consumption_max_per_capita_100kg"
-supply <- read.csv(file.path(consumption_dir, "summary_consumption.csv"))
+#consumption_dir <- "/Volumes/jgephart/ARTIS/Outputs/consumption/consumption_max_per_capita_100kg"
+#consumption_dir <- "../ARTIS/consumption/consumption_max_per_capita_100kg"
+supply <- read.csv("summary_consumption.csv")
 
 supply <- supply %>%
   filter(!is.na(habitat) & !is.na(method)) %>%
@@ -370,6 +370,8 @@ global_supply_per_cap <- supply %>%
     by = c("year")
   ) %>%
   mutate(per_cap = 1000 * supply / pop)
+
+write.csv(global_supply_per_cap, file.path(outdir, "global_supply_per_cap.csv"), row.names = FALSE)
 
 # Figure 3a
 # Calculate per capita supply by region and source
