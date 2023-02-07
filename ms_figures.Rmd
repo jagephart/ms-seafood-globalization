@@ -458,7 +458,9 @@ fig4a <- diversity %>%
   theme_bw() +
   theme(legend.position = "bottom",
         axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
-        strip.background = element_blank())
+        strip.background = element_blank(),
+        text = element_text(size = 18)
+        )
   
 fig4a
 ```
@@ -494,16 +496,17 @@ fig4b <- diversity %>%
   theme_bw() +
   theme(legend.position = "bottom",
         axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
-        strip.background = element_blank())
+        strip.background = element_blank(),
+        text = element_text(size = 18))
 
-fig4c
+fig4b
 ```
 
 
-```{r fig4d}
-fig4d_data <- read.csv(file.path(datadir, "fig4c_data.csv"))
+```{r fig4c}
+fig4c_data <- read.csv(file.path(datadir, "fig4c_data.csv"))
 
-fig4d <- fig4d_data %>%
+fig4c <- fig4c_data %>%
   # total supply greater than 1 tonne (FIXIT update manuscript caption)
   filter(supply > 1) %>%
   ggplot(aes(x = imports/1000000, y = shannon_supply, color = region)) +
@@ -515,16 +518,19 @@ fig4d <- fig4d_data %>%
   theme_minimal() +
   labs(x = "Total imports (million t, live weight)",
        y = "Supply diversity",
-       color = "")
+       color = "") +
+  theme(
+    text = element_text(size = 18)
+  )
 
 # 
 
-fig4d
+fig4c
 ```
-```{r fig4e}
-fig4e_data <- read.csv(file.path(datadir, "fig4c_data.csv"))
+```{r fig4d}
+fig4d_data <- read.csv(file.path(datadir, "fig4c_data.csv"))
 
-fig4e <- fig4e_data %>%
+fig4d <- fig4d_data %>%
   # total supply greater than 1 tonne (FIXIT update manuscript caption)
   filter(supply > 1) %>%
   ggplot(aes(x = exports/1000000, y = shannon_supply, color = region)) +
@@ -536,14 +542,42 @@ fig4e <- fig4e_data %>%
   theme_minimal() +
   labs(x = "Total exports (million t, live weight)",
        y = "Supply diversity",
-       color = "")
+       color = "") +
+  theme(
+    text = element_text(size = 18)
+  )
 
 # 
 
-fig4e
+fig4d
 ```
 
-```{r fig4, fig.height = 7, fig.width = 7}
+```{r fig4, fig.height = 5, fig.width = 7}
+fig4 <- ggarrange(
+  ggarrange(
+    fig4a, fig4b,
+    ncol = 1,
+    nrow = 2,
+    labels = c("a", "b")
+  ),
+  ggarrange(
+    fig4c, fig4d,
+    ncol = 1,
+    nrow = 2,
+    common.legend = TRUE,
+    legend = "bottom",
+    labels = c("c", "d")
+  ),
+  nrow = 1, ncol = 2,
+  widths = c(1, 0.5)
+)
+
+fig4
+
+ggsave(file.path(outdir, "fig4.png"))
+```
+
+```{r fig4_old, fig.height = 7, fig.width = 7}
 fig4 <- ggarrange(fig4a,
                   fig4b,
           ggarrange(fig4d,
@@ -563,7 +597,7 @@ ggsave(file.path(outdir, "fig4.png"))
 
 # Supplementary Figures
 
-```{r si_top_exporters, fig.height = 12, fig.width = 5}
+```{r si_top_exporters, fig.height = 5, fig.width = 4}
 
 top_exporters_old <- read.csv(file.path(datadir, "top_exporters_old.csv")) %>%
   mutate(habitat_method = factor(habitat_method, 
@@ -606,7 +640,7 @@ ggarrange(
 ggsave(file.path(outdir, "si_top_exporters.png"))
 ```
 
-```{r si_top_importers, fig.height = 12, fig.width = 5}
+```{r si_top_importers, fig.height = 5, fig.width = 4}
 
 top_importers_old <- read.csv(file.path(datadir, "top_importers_old.csv")) %>%
   mutate(habitat_method = factor(habitat_method, 
@@ -622,6 +656,7 @@ importers_old_plot <- top_importers_old %>%
   geom_bar(stat = "identity") +
   scale_fill_manual(values = habitat_source_colors) +
   scale_y_reordered() +
+  xlim(c(0, 5.5)) +
   labs(y = "", x = "Live weight (million t)") +
   facet_wrap(~habitat_method, ncol = 1, scales = "free_y") +
   theme_minimal() +
@@ -632,6 +667,7 @@ importers_recent_plot <- top_importers_recent %>%
   geom_bar(stat = "identity") +
   scale_fill_manual(values = habitat_source_colors) +
   scale_y_reordered() +
+  xlim(c(0, 5.5)) +
   labs(y = "", x = "Live weight (million t)") +
   facet_wrap(~habitat_method, ncol = 1, scales = "free_y") +
   theme_minimal() +
@@ -641,13 +677,13 @@ ggarrange(
   importers_old_plot,
   importers_recent_plot,
   ncol = 2,
-  labels = c("Old", "Recent")
+  labels = c("'96-'00", "'16-'20")
 )
 
 ggsave(file.path(outdir, "si_top_importers.png"))
 ```
 
-```{r si_regional_changes, fig.height = 12, fig.width = 5}
+```{r si_regional_changes, fig.height = 4, fig.width = 4}
 
 # Largest regional export changes
 top_regional_export_change <- read.csv(file.path(datadir, "top_regional_export_change.csv")) %>%
@@ -693,7 +729,7 @@ ggarrange(
 ggsave(file.path(outdir, "regional_changes.png"))
 ```
 
-```{r si_export_decreases_increases, fig.height = 12, fig.width = 5}
+```{r si_export_decreases_increases, fig.height = 4, fig.width = 4.5}
 top_export_increases <- read.csv(file.path(datadir, "top_export_increases.csv")) %>%
   mutate(habitat_method = factor(habitat_method, 
                                  levels = c("marine capture", "inland capture", 
@@ -732,7 +768,7 @@ ggarrange(
 ggsave(file.path(outdir, "si_export_changes.png"))
 ```
 
-```{r si_import_decreases_increases, fig.height = 12, fig.width = 5}
+```{r si_import_decreases_increases, fig.height = 4, fig.width = 4.5}
 top_import_increases <- read.csv(file.path(datadir, "top_import_increases.csv")) %>%
   mutate(habitat_method = factor(habitat_method, 
                                  levels = c("marine capture", "inland capture", 
@@ -771,7 +807,7 @@ ggarrange(
 ggsave(file.path(outdir, "si_import_changes.png"))
 ```
 
-```{r regional_avg_annual_change, fig.height = 10, fig.width = 6}
+```{r regional_avg_annual_change, fig.height = 4, fig.width = 5}
 regional_avg_annual_change <- read.csv(file.path(datadir, "regional_avg_annual_change.csv"))
 
 regional_slopes_ranked <- regional_avg_annual_change %>%
@@ -785,6 +821,8 @@ regional_slopes_ranked <- regional_avg_annual_change %>%
   theme(legend.position = "bottom")
 
 regional_slopes_ranked
+
+ggsave(file.path(outdir, "regional_avg_annual_change.png"))
 ```
 
 ```{r ldc_net_exports_habitat_method}
@@ -799,6 +837,8 @@ ldc_net_exports_by_source_plot <- ldc_net_habitat_method_summary %>%
   theme(legend.position = "bottom")
 
 ldc_net_exports_by_source_plot
+
+ggsave(file.path(outdir, "ldc_net_exports_by_source.png"))
 ```
 
 
