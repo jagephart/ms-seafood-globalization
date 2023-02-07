@@ -26,8 +26,8 @@ library(cowplot)
 
 ```{r load_data}
 # Set directories
-datadir <- "outputs"
-outdir <- "outputs"
+datadir <- "outputs_20230206"
+outdir <- "outputs_20230206"
 ```
 
 ```{r color_palettes}
@@ -163,7 +163,7 @@ fig1e <- ggplot() +
 fig1e
 ```
 
-```{r fig1, fig.height = 5.75, fig.width = 4.5}
+```{r fig1, fig.height = 12, fig.width = 7.5}
 ggarrange(fig1a,
           ggarrange(fig1b,
                     fig1c_out_degree,
@@ -321,7 +321,7 @@ ggarrange(ggarrange(fig2a, NULL,
 ggsave(file.path(outdir, "fig2.png"))
 ```
 
-```{r fig2, fig.height=5, fig.width=4}
+```{r fig2, fig.height=8, fig.width=7}
 # Overall Figure 2
 ggarrange(ggarrange(fig2a, NULL,
                     ncol = 2, nrow = 1,
@@ -338,6 +338,10 @@ ggsave(file.path(outdir, "fig2.png"))
 fig3a_data <- read.csv(file.path(datadir, "fig3a_data.csv"))
 
 fig3a <- fig3a_data %>%
+  # Set factor levels
+  mutate(habitat_method = factor(habitat_method, levels = c("marine capture", "inland capture",
+                                                            "marine aquaculture", "inland aquaculture",
+                                                            "unknown" ))) %>%
   ggplot(aes(x = year, y = supply_per_cap, color = habitat_method)) +
   geom_line() + 
   labs(y = "Per capita supply (kg)", x = "", color = "Source") +
@@ -354,6 +358,10 @@ fig3a
 fig3b_data <- read.csv(file.path(datadir, "fig3b_data.csv"))
 
 fig3b <- fig3b_data %>%
+   # Set factor levels
+  mutate(habitat_method = factor(habitat_method, levels = c("marine capture", "inland capture",
+                                                            "marine aquaculture", "inland aquaculture",
+                                                            "unknown" ))) %>%
   ggplot(aes(x = year, y = supply_per_cap, fill = habitat_method)) +
   geom_area() + 
   labs(y = "Per capita supply (kg)", x = "", fill = "Source") +
@@ -400,7 +408,7 @@ fig3d <- fig3d_data %>%
 fig3d
 ```
 
-```{r fig3}
+```{r fig3, fig.height = 6, weight = 8}
 fig3 <- ggarrange(
   ggarrange(fig3a, fig3b, 
             common.legend = TRUE, nrow = 1, widths = c(1, 2),
@@ -437,7 +445,7 @@ fig4a
 fig4b_data <- read.csv(file.path(datadir, "fig4b_data.csv"))
 
 fig4b <- fig4b_data %>%
-  ggplot(aes(x = shannon_supply_domestic, y = shannon_supply_foreign, color = region)) +
+  ggplot(aes(x = shannon_domestic, y = shannon_foreign, color = region)) +
     geom_point(alpha = 0.7) +
     geom_abline(slope = 1, intercept = 0) +
   scale_color_manual(values = region_colors) +
@@ -494,11 +502,11 @@ fig4c
 ```
 
 
-```{r fig4c}
+```{r fig4c_old}
 fig4c_data <- read.csv(file.path(datadir, "fig4c_data.csv"))
 
 fig4c <- fig4c_data %>%
-  ggplot(aes(x = imports_live_weight_t/1000000, y = shannon_supply_no_error, color = region)) +
+  ggplot(aes(x = imports/1000000, y = shannon_supply, color = region)) +
   geom_point(alpha = 0.7) +
   scale_x_log10() +
   scale_color_manual(values = region_colors) +
@@ -511,7 +519,7 @@ fig4c
 ```
 
 
-```{r fig4, fig.height = 3, fig.width = 3}
+```{r fig4, fig.height = 8, fig.width = 12}
 fig4 <- ggarrange(fig4a, 
           ggarrange(fig4b,
                     fig4c,
@@ -524,17 +532,25 @@ fig4 <- ggarrange(fig4a,
           )
 
 fig4
+
+ggsave(file.path(outdir, "fig4.png"))
 ```
 
 # Supplementary Figures
 
-```{r si_top_exporters, fig.height = 4, fig.width = 4}
+```{r si_top_exporters, fig.height = 12, fig.width = 5}
 
-top_exporters_old <- read.csv(file.path(datadir, "top_exporters_old.csv"))
-top_exporters_recent <- read.csv(file.path(datadir, "top_exporters_recent.csv"))
+top_exporters_old <- read.csv(file.path(datadir, "top_exporters_old.csv")) %>%
+  mutate(habitat_method = factor(habitat_method, 
+                                 levels = c("marine capture", "inland capture", 
+                                            "marine aquaculture", "inland aquaculture", "unknown")))
+top_exporters_recent <- read.csv(file.path(datadir, "top_exporters_recent.csv")) %>%
+  mutate(habitat_method = factor(habitat_method, 
+                                 levels = c("marine capture", "inland capture", 
+                                            "marine aquaculture", "inland aquaculture", "unknown")))
 
 exporters_old_plot <- top_exporters_old %>%
-  ggplot(aes(x = live_weight_t/1000000, y = exporter_iso3c, fill = habitat_method)) +
+  ggplot(aes(x = live_weight_t/1000000, y = reorder(exporter_iso3c, ranking), fill = habitat_method)) +
   geom_bar(stat = "identity") +
   scale_fill_manual(values = habitat_source_colors) +
   scale_y_reordered() +
@@ -544,7 +560,7 @@ exporters_old_plot <- top_exporters_old %>%
   theme(legend.position = "none")
 
 exporters_recent_plot <- top_exporters_recent %>%
-  ggplot(aes(x = live_weight_t/1000000, y = exporter_iso3c, fill = habitat_method)) +
+  ggplot(aes(x = live_weight_t/1000000, y = reorder(exporter_iso3c, ranking), fill = habitat_method)) +
   geom_bar(stat = "identity") +
   scale_fill_manual(values = habitat_source_colors) +
   scale_y_reordered() +
@@ -564,13 +580,19 @@ ggarrange(
 ggsave(file.path(outdir, "si_top_exporters.png"))
 ```
 
-```{r si_top_importers, fig.height = 4, fig.width = 4}
+```{r si_top_importers, fig.height = 12, fig.width = 5}
 
-top_importers_old <- read.csv(file.path(datadir, "top_importers_old.csv"))
-top_importers_recent <- read.csv(file.path(datadir, "top_importers_recent.csv"))
+top_importers_old <- read.csv(file.path(datadir, "top_importers_old.csv")) %>%
+  mutate(habitat_method = factor(habitat_method, 
+                                 levels = c("marine capture", "inland capture", 
+                                            "marine aquaculture", "inland aquaculture", "unknown")))
+top_importers_recent <- read.csv(file.path(datadir, "top_importers_recent.csv")) %>%
+  mutate(habitat_method = factor(habitat_method, 
+                                 levels = c("marine capture", "inland capture", 
+                                            "marine aquaculture", "inland aquaculture", "unknown")))
 
 importers_old_plot <- top_importers_old %>%
-  ggplot(aes(x = live_weight_t/1000000, y = importer_iso3c, fill = habitat_method)) +
+  ggplot(aes(x = live_weight_t/1000000, y = reorder(importer_iso3c, ranking), fill = habitat_method)) +
   geom_bar(stat = "identity") +
   scale_fill_manual(values = habitat_source_colors) +
   scale_y_reordered() +
@@ -580,7 +602,7 @@ importers_old_plot <- top_importers_old %>%
   theme(legend.position = "none")
 
 importers_recent_plot <- top_importers_recent %>%
-  ggplot(aes(x = live_weight_t/1000000, y = importer_iso3c, fill = habitat_method)) +
+  ggplot(aes(x = live_weight_t/1000000, y = reorder(importer_iso3c, ranking), fill = habitat_method)) +
   geom_bar(stat = "identity") +
   scale_fill_manual(values = habitat_source_colors) +
   scale_y_reordered() +
@@ -599,14 +621,17 @@ ggarrange(
 ggsave(file.path(outdir, "si_top_importers.png"))
 ```
 
-```{r si_regional_changes, fig.height = 4, fig.width = 4}
+```{r si_regional_changes, fig.height = 12, fig.width = 5}
 
 # Largest regional export changes
-top_regional_export_change <- read.csv(file.path(datadir, "top_regional_export_change.csv"))
+top_regional_export_change <- read.csv(file.path(datadir, "top_regional_export_change.csv")) %>%
+  mutate(habitat_method = factor(habitat_method, 
+                                 levels = c("marine capture", "inland capture", 
+                                            "marine aquaculture", "inland aquaculture", "unknown")))
 
 regional_export_change_plot <- top_regional_export_change %>%
-  ggplot(aes(x = change/1000000, y = exporter_region, fill = habitat_method, color = habitat_method)) +
-  geom_segment(aes(x=0, xend=change/1000000, y=exporter_region, yend=exporter_region)) +
+  ggplot(aes(x = change/1000000, y = reorder(exporter_region, ranking), fill = habitat_method, color = habitat_method)) +
+  geom_segment(aes(x=0, xend=change/1000000, y=reorder(exporter_region, ranking), yend=exporter_region)) +
   geom_point(size=4) +
   scale_color_manual(values = habitat_source_colors) +
   scale_y_reordered() +
@@ -616,11 +641,14 @@ regional_export_change_plot <- top_regional_export_change %>%
   theme(legend.position = "none")
 
 # Largest regional import changes
-top_regional_import_change <- read.csv(file.path(datadir, "top_regional_import_change.csv"))
+top_regional_import_change <- read.csv(file.path(datadir, "top_regional_import_change.csv")) %>%
+  mutate(habitat_method = factor(habitat_method, 
+                                 levels = c("marine capture", "inland capture", 
+                                            "marine aquaculture", "inland aquaculture", "unknown")))
 
 regional_import_change_plot <- top_regional_import_change %>%
-  ggplot(aes(x = change/1000000, y = importer_region, fill = habitat_method, color = habitat_method)) +
-  geom_segment(aes(x=0, xend=change/1000000, y=importer_region, yend=importer_region)) +
+  ggplot(aes(x = change/1000000, y = reorder(importer_region, change), fill = habitat_method, color = habitat_method)) +
+  geom_segment(aes(x=0, xend=change/1000000, y=reorder(importer_region, change), yend=importer_region)) +
   geom_point(size=4) +
   scale_color_manual(values = habitat_source_colors) +
   scale_y_reordered() +
@@ -639,13 +667,19 @@ ggarrange(
 ggsave(file.path(outdir, "regional_changes.png"))
 ```
 
-```{r si_export_decreases_increases, fig.height = 4, fig.width = 4}
-top_export_increases <- read.csv(file.path(datadir, "top_export_increases.csv"))
-top_export_decreases <- read.csv(file.path(datadir, "top_export_decreases.csv"))
+```{r si_export_decreases_increases, fig.height = 12, fig.width = 5}
+top_export_increases <- read.csv(file.path(datadir, "top_export_increases.csv")) %>%
+  mutate(habitat_method = factor(habitat_method, 
+                                 levels = c("marine capture", "inland capture", 
+                                            "marine aquaculture", "inland aquaculture", "unknown")))
+top_export_decreases <- read.csv(file.path(datadir, "top_export_decreases.csv")) %>%
+  mutate(habitat_method = factor(habitat_method, 
+                                 levels = c("marine capture", "inland capture", 
+                                            "marine aquaculture", "inland aquaculture", "unknown")))
 
 exporter_increases_plot <- top_export_increases %>%
-  ggplot(aes(x = change/1000000, y = exporter_iso3c, fill = habitat_method, color = habitat_method)) +
-  geom_segment(aes(x=0, xend=change/1000000, y=exporter_iso3c, yend=exporter_iso3c)) +
+  ggplot(aes(x = change/1000000, y = reorder(exporter_iso3c, ranking), fill = habitat_method, color = habitat_method)) +
+  geom_segment(aes(x=0, xend=change/1000000, y= reorder(exporter_iso3c, ranking), yend=exporter_iso3c)) +
   geom_point(size=4) +
   scale_color_manual(values = habitat_source_colors) +
   scale_y_reordered() +
@@ -655,8 +689,8 @@ exporter_increases_plot <- top_export_increases %>%
   theme(legend.position = "none")
 
 exporter_decreases_plot <- top_export_decreases %>%
-  ggplot(aes(x = change/1000000, y = exporter_iso3c, fill = habitat_method, color = habitat_method)) +
-  geom_segment(aes(x=0, xend=change/1000000, y=exporter_iso3c, yend=exporter_iso3c)) +
+  ggplot(aes(x = change/1000000, y = reorder(exporter_iso3c, ranking), fill = habitat_method, color = habitat_method)) +
+  geom_segment(aes(x=0, xend=change/1000000, y= reorder(exporter_iso3c, ranking), yend=exporter_iso3c)) +
   geom_point(size=4) +
   scale_color_manual(values = habitat_source_colors) +
   scale_y_reordered() +
@@ -672,13 +706,19 @@ ggarrange(
 ggsave(file.path(outdir, "si_export_changes.png"))
 ```
 
-```{r si_import_decreases_increases, fig.height = 4, fig.width = 4}
-top_import_increases <- read.csv(file.path(datadir, "top_import_increases.csv"))
-top_import_decreases <- read.csv(file.path(datadir, "top_import_decreases.csv"))
+```{r si_import_decreases_increases, fig.height = 12, fig.width = 5}
+top_import_increases <- read.csv(file.path(datadir, "top_import_increases.csv")) %>%
+  mutate(habitat_method = factor(habitat_method, 
+                                 levels = c("marine capture", "inland capture", 
+                                            "marine aquaculture", "inland aquaculture", "unknown")))
+top_import_decreases <- read.csv(file.path(datadir, "top_import_decreases.csv")) %>%
+  mutate(habitat_method = factor(habitat_method, 
+                                 levels = c("marine capture", "inland capture", 
+                                            "marine aquaculture", "inland aquaculture", "unknown")))
 
 importer_increases_plot <- top_import_increases %>%
-  ggplot(aes(x = change/1000000, y = importer_iso3c, fill = habitat_method, color = habitat_method)) +
-  geom_segment(aes(x=0, xend=change/1000000, y=importer_iso3c, yend=importer_iso3c)) +
+  ggplot(aes(x = change/1000000, y = reorder(importer_iso3c, ranking), fill = habitat_method, color = habitat_method)) +
+  geom_segment(aes(x=0, xend=change/1000000, y= reorder(importer_iso3c, ranking), yend=importer_iso3c)) +
   geom_point(size=4) +
   scale_color_manual(values = habitat_source_colors) +
   scale_y_reordered() +
@@ -688,8 +728,8 @@ importer_increases_plot <- top_import_increases %>%
   theme(legend.position = "none")
 
 importer_decreases_plot <- top_import_decreases %>%
-  ggplot(aes(x = change/1000000, y = importer_iso3c, fill = habitat_method, color = habitat_method)) +
-  geom_segment(aes(x=0, xend=change/1000000, y=importer_iso3c, yend=importer_iso3c)) +
+  ggplot(aes(x = change/1000000, y = reorder(importer_iso3c, ranking), fill = habitat_method, color = habitat_method)) +
+  geom_segment(aes(x=0, xend=change/1000000, y= reorder(importer_iso3c, ranking), yend=importer_iso3c)) +
   geom_point(size=4) +
   scale_color_manual(values = habitat_source_colors) +
   scale_y_reordered() +
@@ -705,12 +745,12 @@ ggarrange(
 ggsave(file.path(outdir, "si_import_changes.png"))
 ```
 
-```{r regional_avg_annual_change, fig.height = 4, fig.width = 4}
+```{r regional_avg_annual_change, fig.height = 10, fig.width = 6}
 regional_avg_annual_change <- read.csv(file.path(datadir, "regional_avg_annual_change.csv"))
 
 regional_slopes_ranked <- regional_avg_annual_change %>%
-  ggplot(aes(x = slope/1000, y = exporter_importer, color = intraregion)) +
-  geom_segment(aes(x=0, xend=slope/1000, y=exporter_importer, yend=exporter_importer, color = intraregion)) +
+  ggplot(aes(x = slope/1000, y = reorder(exporter_importer, slope), color = intraregion)) +
+  geom_segment(aes(x=0, xend=slope/1000, y=reorder(exporter_importer, slope), yend=exporter_importer, color = intraregion)) +
   geom_point(size=3) +
   scale_y_reordered() +
   scale_color_manual(values = habitat_source_colors[c(1,4)]) +
