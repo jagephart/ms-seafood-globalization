@@ -134,6 +134,55 @@ all_degree_2019 <- all_degree_summary %>%
   pull(all_out_degree)
 ```
 
+```{r dom_source_stats}
+dom_source_ts <- read.csv(file.path(datadir, "dom_source_ts.csv"))
+foreign_exports_1996 <- dom_source_ts %>%
+  filter(dom_source == "foreign export") %>%
+  filter(year == 1996) %>%
+  pull(live_weight_t)
+
+foreign_exports_2019 <- dom_source_ts %>%
+  filter(dom_source == "foreign export") %>%
+  filter(year == 2019) %>%
+  pull(live_weight_t)
+
+foreign_exports_percent_change <- 100 * (foreign_exports_2019 - foreign_exports_1996) / foreign_exports_2019
+
+# foreign exports as share of total production
+exports_percents <- dom_source_ts %>%
+  group_by(year) %>%
+  mutate(total_export = sum(live_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(export_percent = 100 * live_weight_t / total_export)
+
+exports_percents_no_error <- dom_source_ts %>%
+  filter(dom_source != "error export") %>%
+  group_by(year) %>%
+  mutate(total_export = sum(live_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(export_percent = 100 * live_weight_t / total_export)
+
+foreign_export_percent_1996 <- exports_percents %>%
+  filter(dom_source == "foreign export") %>%
+  filter(year == 1996) %>%
+  pull(export_percent)
+
+foreign_export_percent_2019 <- exports_percents %>%
+  filter(dom_source == "foreign export") %>%
+  filter(year == 2019) %>%
+  pull(export_percent)
+
+foreign_export_percent_1996_no_error <- exports_percents_no_error %>%
+  filter(dom_source == "foreign export") %>%
+  filter(year == 1996) %>%
+  pull(export_percent)
+
+foreign_export_percent_2019_no_error <- exports_percents_no_error %>%
+  filter(dom_source == "foreign export") %>%
+  filter(year == 2019) %>%
+  pull(export_percent)
+```
+
 
 ## Text for MS
 
@@ -161,7 +210,14 @@ Aquatic foods have become increasingly globalized, with the percent of productio
 
 Marine-sourced products dominate both capture and aquaculture exports, comprising `r round(100*total_marine_capture_2019/(total_marine_capture_2019+total_inland_capture_2019), 1)`% and `r round(100*total_marine_aquaculture_2019/(total_marine_aquaculture_2019+total_inland_aquaculture_2019), 1)`%, respectively. Aquatic food trade outpaced fishmeal (for non-human consumption) trade, which remained relatively stable, declining `r abs(round(100*(total_fmfo_2019-total_fmfo_1996)/(total_fmfo_1996), 1))`% over the time period. Consequently, fishmeal exports as a share of the sum of aquatic food and fishmeal exports declined from `r abs(round(100*(total_fmfo_1996)/(total_1996+total_fmfo_1996), 1))`% in 1996 to only `r abs(round(100*(total_fmfo_2019)/(total_2019+total_fmfo_2019), 1))`% in 2019.
 
-# Shifts in global flows of blue foods
+Foreign exports changed by `r round(foreign_exports_percent_change, digits = 1)`% (from `r round(foreign_exports_1996/1000000, digits = 2)` million tonnes in 1996 to `r round(foreign_exports_2019/1000000, digits = 2)` million tonnes in 2019).
+
+As a share of exports (error exports included), foreign exports increased by `r round(100*(foreign_export_percent_2019-foreign_export_percent_1996)/foreign_export_percent_1996, digits = 1)`% from `r round(foreign_export_percent_1996, digits = 1)`% in 1996 to `r round(foreign_export_percent_2019, digits = 1)`% in 2019.
+
+As a share of exports (error exports NOT included), foreign exports increased by `r round(100*(foreign_export_percent_2019_no_error-foreign_export_percent_1996_no_error)/foreign_export_percent_1996_no_error, digits = 1)`% from `r round(foreign_export_percent_1996_no_error, digits = 1)`% in 1996 to `r round(foreign_export_percent_2019_no_error, digits = 1)`% in 2019.
+
+
+# Shifts in global flows of blue foods  
 
 ```{r}
 bilateral_flow_change <- read.csv(file.path(datadir, "bilateral_flow_change.csv"))
@@ -317,7 +373,7 @@ Since we estimate exports from domestic and foreign sources, we can track change
 	
 High global diversity of aquatic food production enables high diversity in consumption, which is important for supplying a range of micronutrients, supporting a range of livelihoods, and is thought to support food system resilience (Seekell et al. 2017). However, one concern about food trade is that it homogenizes diets through two related pathways: by introducing foods that make diets more similar across countries and/or by out-competing diverse local foods. To explore this issue for aquatic foods, we compared the Shannon diversity index, of production versus imports and and exports (Fig 4a) and domestic supply versus foreign supply (Fig 4b). Across regions, import diversity is generally higher than production diversity and export diversity is similar to production diversity across regions (Fig 4a). Import diversity exceeds production diversity in `r n_import_exceeds_prod` out of `r nrow(national_supply_diversity)` countries. Although the diversity of imported goods tends to be higher than production, diversity of domestic-sourced consumption tends to be higher than  diversity of foreign sourced consumption (Fig 4b). Total imports and exports are positively associated with supply diversity across all regions (Fig 4c). This suggests trade is contributing new species to many national markets. Collectively, our diversity findings point to a need to protect domestic production diversity while still benefiting from the diversity of imported products. 
 
-## Other summary stats
+## Other summary stats 
 
 ![Figure 3: Aquatic food apparent consumption (supply) trends and regional patterns. a) Global aquatic food apparent consumption by production source over time. b) Regional aquatic food apparent consumption by production source over time. c) Global aquatic food domestic versus foreign sourcing over time. d) Regional aquatic food domestic versus foreign sourcing over time. ](outputs/fig3.png)
 
