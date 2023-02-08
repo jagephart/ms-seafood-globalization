@@ -1090,7 +1090,7 @@ ggarrange(
   labels = c("a", "b")
 )
 
-ggsave("dom_source_2019_overview.png")
+ggsave(file.path(outdir, "dom_source_2019_overview.png"))
 ```
 
 ```{r top_processing_countries_by_source, fig.height = 4, fig.width = 6}
@@ -1112,6 +1112,6 @@ top_processing_by_source %>%
   facet_wrap(~habitat_method, scales = "free_y") +
   theme(legend.position = "none")
 
-ggsave("foreign_exports_2019_by_source.png")
+ggsave(file.path(outdir, "foreign_exports_2019_by_source.png"))
 ```
 
