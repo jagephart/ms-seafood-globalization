@@ -17,7 +17,7 @@ library(tidytext)
 # Directory listing
 
 outdir <- "/Volumes/jgephart/ARTIS/Outputs/ms_seafood_globalization/20220111"
-outdir <- "outputs_20230206"
+outdir <- "outputs_20230330"
 
 #-------------------------------------------------------------------------------
 # Initial database pulls
@@ -88,7 +88,7 @@ write.csv(prod, file.path(outdir, "prod.csv"), row.names = FALSE)
 write.csv(artis_fm, file.path(outdir, "artis_fm.csv"), row.names = FALSE)
 
 # Write out the bilater non-food trade data to use in supply calculations
-write.csv(artis_nonfood, file.path(outdir, "artis_fm.csv"), row.names = FALSE)
+write.csv(artis_nonfood, file.path(outdir, "artis_nonfood.csv"), row.names = FALSE)
 
 #-------------------------------------------------------------------------------
 # Summarize cleaned FAO production data
@@ -100,7 +100,7 @@ prod <- prod %>%
   summarise(production_t = sum(production_t, na.rm = TRUE)) %>%
   ungroup()
 
-# Join production data to ARTIS
+
 artis <- artis %>%
   filter(live_weight_t >= 0.1) %>%
   # Add importer and exporter region
@@ -449,46 +449,6 @@ fig3d_data <- supply %>%
   mutate(supply_source = gsub("supply_", "", supply_source))
 
 write.csv(fig3d_data, file.path(outdir, "fig3d_data.csv"), row.names = FALSE)
-
-#-------------------------------------------------------------------------------
-# Figure 4
-# Relationship between trade and supply diversity
-diversity_dir <- "/Volumes/jgephart/ARTIS/Outputs/diversity/max_per_capita_100kg"
-diversity <- read.csv(file.path(diversity_dir, "diversity.csv"))
-
-# Figure 4a
-# Time series of the Shannon diversity of imported blue foods and produced blue foods by region.
-fig4a_data <- diversity %>%
-  filter(region != "Other nei") %>%
-  group_by(year, region) %>%
-  summarise(shannon_prod = mean(shannon_prod), 
-            shannon_imports = mean(shannon_imports)) %>%
-  pivot_longer(cols = shannon_prod:shannon_imports,
-               names_to = "source", values_to = "shannon") %>%
-  mutate(source = case_when(
-    source == "shannon_prod" ~ "Production diversity",
-    source == "shannon_imports" ~ "Import diversity"
-  ))
-
-write.csv(fig4a_data, file.path(outdir, "fig4a_data.csv"), row.names = FALSE)
-
-
-# Figure 4b
-# Foreign supply Shannon diversity versus domestic supply Shannon diversity for 2018.
-# The black line represents the 1-to-1 line, such that points falling below the line 
-# indicate countries where the domestic supply diversity is greater than the foreign
-# supply diversity.
-fig4b_data <- diversity %>%
-  filter(year == 2018, region != "Other nei")
-
-write.csv(fig4b_data, file.path(outdir, "fig4b_data.csv"), row.names = FALSE)
-
-# Figure 4c
-# Relationship between total imports and overall supply diversity for 2018.
-fig4c_data <- diversity %>%
-  filter(year == 2018, region != "Other nei")
-
-write.csv(fig4c_data, file.path(outdir, "fig4c_data.csv"), row.names = FALSE)
 
 #-------------------------------------------------------------------------------
 # SUPPLEMENTARY FIGURES
