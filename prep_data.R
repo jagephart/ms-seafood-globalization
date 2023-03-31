@@ -16,19 +16,19 @@ library(tidytext)
 #-------------------------------------------------------------------------------
 # Directory listing
 
-outdir <- "/Volumes/jgephart/ARTIS/Outputs/ms_seafood_globalization/20220111"
-outdir <- "outputs_20230330"
+outdir <- "/Volumes/jgephart/ARTIS/Outputs/ms_seafood_globalization/2023031"
+outdir <- "outputs_20230331"
 
 #-------------------------------------------------------------------------------
 # Initial database pulls
 
 # Database connection
 con <- dbConnect(RPostgres::Postgres(),
-                 dbname=Sys.getenv("POSTGRES_DB"),
+                 dbname=Sys.getenv("DB_NAME"),
                  host="localhost",
                  port="5432",
-                 user=Sys.getenv("POSTGRES_USER"),
-                 password=Sys.getenv("POSTGRES_PASSWORD"))
+                 user=Sys.getenv("DB_USERNAME"),
+                 password=Sys.getenv("DB_PASSWORD"))
 
 # Check that connection is established by checking which tables are present
 dbListTables(con)
@@ -179,7 +179,7 @@ prod_by_source <- prod %>%
 write.csv(prod_by_source, file.path(outdir, "prod_by_habitat_method.csv"), row.names = FALSE)
 
 dom_export_by_source <- artis %>% 
-  filter(dom_source == "domestic export") %>%
+  filter(dom_source == "domestic") %>%
   group_by(year, habitat_method, environment) %>%
   summarise(dom_live_weight_t = sum(live_weight_t))
 
@@ -332,8 +332,8 @@ calculate_supply <- function(artis_data, production_data){
 
 # Supply / Consumption data
 #consumption_dir <- "/Volumes/jgephart/ARTIS/Outputs/consumption/consumption_max_per_capita_100kg"
-#consumption_dir <- "../ARTIS/consumption/consumption_max_per_capita_100kg"
-supply <- read.csv("summary_consumption.csv")
+consumption_dir <- "../ARTIS/qa/consumption_20230328"
+supply <- read.csv(file.path(consumption_dir, "summary_consumption.csv"))
 
 supply <- supply %>%
   filter(!is.na(habitat) & !is.na(method)) %>%
@@ -604,6 +604,7 @@ top_regional_import_change <- bilateral_habitat_method_summary %>%
   ungroup() %>%
   mutate(importer_region = reorder_within(importer_region, change, habitat_method))
 
+
 write.csv(top_regional_import_change, file.path(outdir, "top_regional_import_change.csv"), row.names = FALSE)
 
 #-------------------------------------------------------------------------------
@@ -832,7 +833,7 @@ write.csv(import_concentration_habitat_method_n_countries, file.path(outdir, "im
 #-------------------------------------------------------------------------------
 # Custom ARTIS timeseries (based on different HS versions used)
 
-hs_version_datadir <- "/Volumes/jgephart/ARTIS/Outputs/S_net/snet_20221129/snet"
+hs_version_datadir <- "/Volumes/jgephart/ARTIS/Outputs/S_net/snet_20230328/snet"
 
 # Based on snet midpoint estimation
 hs_versions <- c("96", "02", "07", "12", "17")
@@ -984,7 +985,7 @@ summary_dom_source <- mid_exports %>%
 
 
 summary_dom_source %>%
-  filter(dom_source == "foreign export") %>%
+  filter(dom_source == "foreign") %>%
   ggplot(aes(x = year, y = percent_export, color = estimate)) +
   geom_line(linewidth = 1) +
   scale_color_manual(values = c("#264653", "#e9c46a", "#e76f51")) +
@@ -1067,7 +1068,7 @@ write.csv(consumption_foreign, file.path(outdir, "consumption_foreign.csv"), row
 # Processing
 
 dom_source_artis <- artis %>%
-  filter(dom_source != "error export")
+  filter(dom_source != "error")
 
 dom_source_ts <- artis %>%
   group_by(dom_source, year) %>%
@@ -1084,7 +1085,7 @@ dom_source_by_habitat_method <- dom_source_artis %>%
 write.csv(dom_source_by_habitat_method, file.path(outdir, "dom_source_by_habitat_method.csv"), row.names = FALSE)
 
 foreign_exports <- artis %>%
-  filter(dom_source == "foreign export")
+  filter(dom_source == "foreign")
 
 top_processing_countries <- foreign_exports %>%
   group_by(exporter_iso3c, year) %>%
