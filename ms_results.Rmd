@@ -16,7 +16,7 @@ library(tidytext)
 
 ```{r load_data}
 # Directory
-datadir <- "outputs_20230330"
+datadir <- "outputs"
 
 global_export_by_source <- read.csv(file.path(datadir, "global_export_by_source.csv"))
 all_degree_summary <- read.csv(file.path(datadir, "all_degree_summary.csv"))
@@ -350,15 +350,6 @@ asia_farmed_year <- supply %>%
   pull(year)
 
 foreign_consumption_region <- read.csv(file.path(datadir, "fig3d_data.csv"))
-
-```
-
-```{r}
-national_supply_diversity <- read.csv(file.path(datadir, "fig4b_data.csv"))
-
-n_import_exceeds_prod <- national_supply_diversity %>%
-  filter(shannon_imports > shannon_prod) %>%
-  nrow()
 
 ```
 

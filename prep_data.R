@@ -17,7 +17,7 @@ library(tidytext)
 # Directory listing
 
 outdir <- "/Volumes/jgephart/ARTIS/Outputs/ms_seafood_globalization/2023031"
-outdir <- "outputs_20230331"
+outdir <- "outputs"
 
 #-------------------------------------------------------------------------------
 # Initial database pulls
@@ -287,52 +287,9 @@ write.csv(artis_region, file.path(outdir, "artis_region.csv"), row.names = FALSE
 #-------------------------------------------------------------------------------
 # Figure 3
 
-# Create calculate_supply function (small difference from version in explore_artis)
-calculate_supply <- function(artis_data, production_data){
-  exports <- artis_data %>%
-    group_by(year, exporter_iso3c, dom_source, sciname, method, habitat) %>%
-    summarise(live_weight_t = sum(live_weight_t)) %>%
-    mutate(dom_source = str_replace(dom_source, " ", "_")) %>%
-    pivot_wider(names_from = "dom_source", values_from = "live_weight_t")
-  
-  if (!("error_export" %in% colnames(exports))) {
-    exports$error_export <- NA
-  }
-  
-  imports <- artis_data %>%
-    group_by(year, importer_iso3c, sciname, method, habitat) %>%
-    summarise(imports_live_weight_t = sum(live_weight_t))
-  
-  supply <- exports %>%
-    full_join(imports, by = c("year", "exporter_iso3c" = "importer_iso3c", 
-                              "sciname", "method", "habitat")) %>%
-    full_join(production_data %>% 
-                rename(production_t = live_weight_t), by = c("year", "exporter_iso3c" = "iso3c", 
-                                                             "sciname", "method", "habitat")) 
-  
-  supply$foreign_export[is.na(supply$foreign_export)] <- 0
-  supply$domestic_export[is.na(supply$domestic_export)] <- 0
-  supply$error_export[is.na(supply$error_export)] <- 0
-  supply$imports_live_weight_t[is.na(supply$imports_live_weight_t)] <- 0
-  supply$production_t[is.na(supply$production_t)] <- 0
-  
-  supply <- supply %>%
-    mutate(supply = production_t + imports_live_weight_t - domestic_export - foreign_export - error_export,
-           supply_no_error = production_t + imports_live_weight_t - domestic_export - foreign_export, 
-           supply_domestic = production_t - domestic_export,
-           supply_foreign = imports_live_weight_t - foreign_export) %>%
-    rename("iso3c" = "exporter_iso3c") %>%
-    ungroup() %>%
-    mutate(supply_no_error = replace_na(supply_no_error, 0),
-           supply_domestic = replace_na(supply_domestic, 0),
-           supply_foreign = replace_na(supply_foreign, 0))
-  
-  return(supply)
-}
-
 # Supply / Consumption data
-#consumption_dir <- "/Volumes/jgephart/ARTIS/Outputs/consumption/consumption_max_per_capita_100kg"
-consumption_dir <- "../ARTIS/qa/consumption_20230328"
+consumption_dir <- "/Volumes/jgephart/ARTIS/Outputs/consumption/consumption_20230328"
+#consumption_dir <- "../ARTIS/qa/consumption_20230328"
 supply <- read.csv(file.path(consumption_dir, "summary_consumption.csv"))
 
 supply <- supply %>%
@@ -833,46 +790,46 @@ write.csv(import_concentration_habitat_method_n_countries, file.path(outdir, "im
 #-------------------------------------------------------------------------------
 # Custom ARTIS timeseries (based on different HS versions used)
 
-hs_version_datadir <- "/Volumes/jgephart/ARTIS/Outputs/S_net/snet_20230328/snet"
-
-# Based on snet midpoint estimation
-hs_versions <- c("96", "02", "07", "12", "17")
-
-artis_ts <- data.frame()
-
-for (i in 1:length(hs_versions)) {
-  curr_hs <- hs_versions[i]
-  print(curr_hs)
-  curr_fp <- file.path(hs_version_datadir, paste("HS", curr_hs, "/midpoint_artis_habitat_prod_ts_HS", curr_hs, ".csv", sep = ""))
-  print(curr_fp)
-  curr_artis <- read.csv(curr_fp) %>%
-    mutate(hs_version = paste("HS", curr_hs, sep = "")) %>%
-    group_by(year, hs_version) %>%
-    summarize(live_weight_t = sum(live_weight_t, na.rm = TRUE)) %>%
-    ungroup()
-
-  artis_ts <- artis_ts %>%
-    bind_rows(curr_artis)
-}
-
-custom_ts <- artis_ts %>%
-  filter(
-    # Use HS96 from 1996-2003 (inclusive)
-    ((hs_version == "HS96") & (year <= 2003)) |
-      # Use HS02 from 2004-2009 (inclusive)
-      ((hs_version == "HS02") & (year >= 2004 & year <= 2009)) |
-      # Use HS07 from 2010-2012 (inclusive)
-      ((hs_version == "HS07") & (year >= 2010 & year <= 2012)) |
-      # Use HS12 from 2013-2019 (inclusive)
-      ((hs_version == "HS12") & (year >= 2013 & year <= 2020))
-  ) %>%
-  mutate(hs_version = "Custom ARTIS Time series")
-
-artis_ts <- artis_ts %>%
-  bind_rows(custom_ts)
-
-write.csv(artis_ts, file.path(outdir, "artis_ts.csv"), row.names = FALSE)
-write.csv(custom_ts, file.path(outdir, "custom_ts.csv"), row.names = FALSE)
+# hs_version_datadir <- "/Volumes/jgephart/ARTIS/Outputs/S_net/snet_20230328/snet"
+# 
+# # Based on snet midpoint estimation
+# hs_versions <- c("96", "02", "07", "12", "17")
+# 
+# artis_ts <- data.frame()
+# 
+# for (i in 1:length(hs_versions)) {
+#   curr_hs <- hs_versions[i]
+#   print(curr_hs)
+#   curr_fp <- file.path(hs_version_datadir, paste("HS", curr_hs, "/midpoint_artis_habitat_prod_ts_HS", curr_hs, ".csv", sep = ""))
+#   print(curr_fp)
+#   curr_artis <- read.csv(curr_fp) %>%
+#     mutate(hs_version = paste("HS", curr_hs, sep = "")) %>%
+#     group_by(year, hs_version) %>%
+#     summarize(live_weight_t = sum(live_weight_t, na.rm = TRUE)) %>%
+#     ungroup()
+# 
+#   artis_ts <- artis_ts %>%
+#     bind_rows(curr_artis)
+# }
+# 
+# custom_ts <- artis_ts %>%
+#   filter(
+#     # Use HS96 from 1996-2003 (inclusive)
+#     ((hs_version == "HS96") & (year <= 2003)) |
+#       # Use HS02 from 2004-2009 (inclusive)
+#       ((hs_version == "HS02") & (year >= 2004 & year <= 2009)) |
+#       # Use HS07 from 2010-2012 (inclusive)
+#       ((hs_version == "HS07") & (year >= 2010 & year <= 2012)) |
+#       # Use HS12 from 2013-2019 (inclusive)
+#       ((hs_version == "HS12") & (year >= 2013 & year <= 2020))
+#   ) %>%
+#   mutate(hs_version = "Custom ARTIS Time series")
+# 
+# artis_ts <- artis_ts %>%
+#   bind_rows(custom_ts)
+# 
+# write.csv(artis_ts, file.path(outdir, "artis_ts.csv"), row.names = FALSE)
+# write.csv(custom_ts, file.path(outdir, "custom_ts.csv"), row.names = FALSE)
 
 #-------------------------------------------------------------------------------
 # how many countries report with at least 75% true species
@@ -951,49 +908,49 @@ true_species_prod <- true_species_producers %>%
 #-------------------------------------------------------------------------------
 # Comparing foreign export ranges between max, midpoint and min estimations
 # Get Data
-con <- dbConnect(RPostgres::Postgres(),
-                 dbname=Sys.getenv("DB_NAME"),
-                 host=Sys.getenv("DB_HOST"),
-                 port=Sys.getenv("DB_PORT"),
-                 user=Sys.getenv("DB_USERNAME"),
-                 password=Sys.getenv("DB_PASSWORD"))
-
-# Check that connection is established by checking which tables are present
-dbListTables(con)
-
-mid_exports <- dbGetQuery(con, 'SELECT SUM(live_weight_t) AS live_weight_t, dom_source, year FROM snet GROUP BY dom_source, year;')
-min_exports <- dbGetQuery(con, 'SELECT SUM(live_weight_t) AS live_weight_t, dom_source, year FROM min_snet GROUP BY dom_source, year;')
-max_exports <- dbGetQuery(con, 'SELECT SUM(live_weight_t) AS live_weight_t, dom_source, year FROM max_snet GROUP BY dom_source, year;')
-
-dbDisconnect(con)
+# con <- dbConnect(RPostgres::Postgres(),
+#                  dbname=Sys.getenv("DB_NAME"),
+#                  host=Sys.getenv("DB_HOST"),
+#                  port=Sys.getenv("DB_PORT"),
+#                  user=Sys.getenv("DB_USERNAME"),
+#                  password=Sys.getenv("DB_PASSWORD"))
+# 
+# # Check that connection is established by checking which tables are present
+# dbListTables(con)
+# 
+# mid_exports <- dbGetQuery(con, 'SELECT SUM(live_weight_t) AS live_weight_t, dom_source, year FROM snet GROUP BY dom_source, year;')
+# min_exports <- dbGetQuery(con, 'SELECT SUM(live_weight_t) AS live_weight_t, dom_source, year FROM min_snet GROUP BY dom_source, year;')
+# max_exports <- dbGetQuery(con, 'SELECT SUM(live_weight_t) AS live_weight_t, dom_source, year FROM max_snet GROUP BY dom_source, year;')
+# 
+# dbDisconnect(con)
 #-------------------------------------------------------------------------------
 
-summary_dom_source <- mid_exports %>%
-  mutate(estimate = "midpoint") %>%
-  bind_rows(
-    min_exports %>%
-      mutate(estimate = "minimum")
-  ) %>%
-  bind_rows(
-    max_exports %>%
-      mutate(estimate = "maximum")
-  ) %>%
-  group_by(year, estimate) %>%
-  mutate(total_exports = sum(live_weight_t, na.rm = TRUE)) %>%
-  ungroup() %>%
-  mutate(percent_export = 100 * live_weight_t / total_exports)
-
-
-summary_dom_source %>%
-  filter(dom_source == "foreign") %>%
-  ggplot(aes(x = year, y = percent_export, color = estimate)) +
-  geom_line(linewidth = 1) +
-  scale_color_manual(values = c("#264653", "#e9c46a", "#e76f51")) +
-  theme_bw() +
-  labs(x = "Year", y = "Percent of total exports", color = "Estimate") +
-  theme(
-    legend.position = "bottom"
-  )
+# summary_dom_source <- mid_exports %>%
+#   mutate(estimate = "midpoint") %>%
+#   bind_rows(
+#     min_exports %>%
+#       mutate(estimate = "minimum")
+#   ) %>%
+#   bind_rows(
+#     max_exports %>%
+#       mutate(estimate = "maximum")
+#   ) %>%
+#   group_by(year, estimate) %>%
+#   mutate(total_exports = sum(live_weight_t, na.rm = TRUE)) %>%
+#   ungroup() %>%
+#   mutate(percent_export = 100 * live_weight_t / total_exports)
+# 
+# 
+# summary_dom_source %>%
+#   filter(dom_source == "foreign") %>%
+#   ggplot(aes(x = year, y = percent_export, color = estimate)) +
+#   geom_line(linewidth = 1) +
+#   scale_color_manual(values = c("#264653", "#e9c46a", "#e76f51")) +
+#   theme_bw() +
+#   labs(x = "Year", y = "Percent of total exports", color = "Estimate") +
+#   theme(
+#     legend.position = "bottom"
+#   )
 
 #-------------------------------------------------------------------------------
 # Results
@@ -1108,20 +1065,3 @@ top_processing_countries_by_source <- foreign_exports %>%
 
 write.csv(top_processing_countries_by_source, file.path(outdir, "top_processing_by_source.csv"), row.names = FALSE)
 
-top_processing_countries %>%
-  filter(year == 2019) %>%
-  ggplot(aes(x = live_weight_t, y = reorder(exporter_iso3c, ranking))) +
-  geom_bar(stat = "identity") +
-  scale_y_reordered() +
-  theme_bw() +
-  labs(x = "Re-exports (Live weight tonnes)", y = "Processing Country")
-
-top_processing_countries_by_source %>%
-  filter(year == 2019) %>%
-  ggplot(aes(x = live_weight_t / 1000000, y = reorder(exporter_iso3c, ranking), fill = habitat_method)) +
-  geom_bar(stat = "identity") +
-  scale_fill_manual(values = habitat_source_colors) +
-  scale_y_reordered() +
-  theme_bw() +
-  labs(x = "Re-exports (Live weight million tonnes)", y = "Processing Country") +
-  facet_wrap(~habitat_method, scales = "free_y")

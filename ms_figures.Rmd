@@ -29,8 +29,8 @@ library(ggpubr)
 
 ```{r load_data}
 # Set directories
-datadir <- "outputs_20230330"
-outdir <- "outputs_20230330"
+datadir <- "outputs"
+outdir <- "outputs"
 ```
 
 ```{r color_palettes}
@@ -880,7 +880,7 @@ dom_source_ts_p <- dom_source_ts %>%
   filter(dom_source != "error export") %>%
   ggplot(aes(x = year, y = live_weight_t / 1000000, color = dom_source)) +
   geom_line() +
-  scale_color_manual(values = c("#D38F35", "#114F59")) +
+  scale_color_manual(values = c("#D38F35", "#114F59", "grey")) +
   theme_bw() +
   labs(x = "", y = "Live weight\nmillion tonnes", color = "Source") +
   theme(
@@ -945,5 +945,27 @@ top_processing_by_source %>%
   theme(legend.position = "none")
 
 ggsave(file.path(outdir, "foreign_exports_2019_by_source.png"))
+```
+
+```{r, eval=FALSE}
+# Plots moved from end of prep_data
+top_processing_countries %>%
+  filter(year == 2019) %>%
+  ggplot(aes(x = live_weight_t, y = reorder(exporter_iso3c, ranking))) +
+  geom_bar(stat = "identity") +
+  scale_y_reordered() +
+  theme_bw() +
+  labs(x = "Re-exports (Live weight tonnes)", y = "Processing Country")
+
+top_processing_countries_by_source %>%
+  filter(year == 2019) %>%
+  ggplot(aes(x = live_weight_t / 1000000, y = reorder(exporter_iso3c, ranking), fill = habitat_method)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = habitat_source_colors) +
+  scale_y_reordered() +
+  theme_bw() +
+  labs(x = "Re-exports (Live weight million tonnes)", y = "Processing Country") +
+  facet_wrap(~habitat_method, scales = "free_y")
+
 ```
 
