@@ -23,6 +23,8 @@ library(vegan)
 library(tidytext)
 library(cowplot)
 library(scales)
+library(ggsankey)
+library(ggpubr)
 ```
 
 ```{r load_data}
@@ -71,9 +73,14 @@ fig1a <- fig1a_data %>%
   ggplot(aes(x = year, y = live_weight_t/1000000, fill = habitat_method)) +
   geom_area() +
   scale_fill_manual(values = habitat_source_colors) +
-  labs(y = "Exports (mil. t, live weight)", fill = "Source", x = "") +
+  labs(y = "Exports\n(mil. t, live weight)", fill = "Source", x = "") +
   theme_bw() +
-  theme(legend.position = "bottom")
+  theme(legend.position = "bottom",
+        axis.title.y = element_text(size = 16),
+        axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 12),
+        legend.text = element_text(size = 9),
+        )
 
 fig1a
 ```
@@ -90,8 +97,11 @@ fig1b_data <- read.csv(file.path(datadir, "fig_1b_data.csv")) %>%
 fig1b <- ggplot() +
   geom_line(data = fig1b_data, aes(x = year, y = percent_export, color = habitat_method)) +
   scale_color_manual(values = habitat_source_colors) +
-  labs(y = "% Production Exported", x = "", color = "Source") +
-  theme_bw()
+  labs(y = "% Production\nExported", x = "", color = "Source") +
+  theme_bw() +
+  theme(
+    text = element_text(size = 16)
+  )
 
 fig1b
 ```
@@ -109,8 +119,12 @@ fig1c_out_degree <- fig1c_data %>%
   ggplot(aes(x = year, y = all_in_degree, color = habitat_method)) +
   geom_smooth() +
   scale_color_manual(values = habitat_source_colors) +
-  labs(y = "Average no. export partners", color = "Source") + 
-  theme_bw()
+  labs(y = "Average\nno. export partners", color = "Source") + 
+  theme_bw() +
+  theme(
+    text = element_text(size = 16),
+    axis.title.x = element_blank()
+  )
 
 fig1c_out_degree
 ```
@@ -143,9 +157,12 @@ fig1d <- ggplot() +
       aes(x = year, y = n, color = habitat_method)) +
   geom_line(data = export_n_countries_concentration, aes(x = year, y = n, color = "total"), linewidth = 1) +
   scale_color_manual(values = habitat_source_colors_v2) +
-  labs(x = "", y = paste("No. countries comprising ", cumulative_percent_threshold, "% of exports", sep = ""), color = "Source") +
+  labs(x = "", y = paste("No. countries\ncomprising ", cumulative_percent_threshold, "% exports", sep = ""), color = "Source") +
   lims(y = c(0, 30)) +
-  theme_bw()
+  theme_bw() +
+  theme(
+    text = element_text(size = 16)
+  )
 
 fig1d
 
@@ -157,14 +174,17 @@ fig1e <- ggplot() +
       aes(x = year, y = n, color = habitat_method)) +
   geom_line(data = import_n_countries_concentration, aes(x = year, y = n, color = "total"), linewidth = 1) +
     scale_color_manual(values = habitat_source_colors_v2) +
-  labs(x = "", y = paste("No. countries comprising ", cumulative_percent_threshold, "% of imports", sep = ""), color = "Source") +
+  labs(x = "", y = paste("No. countries\ncomprising ", cumulative_percent_threshold, "% imports", sep = ""), color = "Source") +
   lims(y = c(0, 30)) +
-  theme_bw()
+  theme_bw() +
+  theme(
+    text = element_text(size = 16)
+  )
 
 fig1e
 ```
 
-```{r fig1, fig.height = 7, fig.width = 5}
+```{r fig1, fig.height = 4, fig.width = 4}
 ggarrange(fig1a,
           ggarrange(fig1b,
                     fig1c_out_degree,
@@ -428,6 +448,167 @@ ggsave(file.path(outdir, "fig3.png"))
 
 # Supplementary Figures
 
+```{r regional_sankey, fig.height = 2, fig.width = 2}
+regional_artis <- read.csv(file.path(datadir, "regional_artis_by_source.csv"))
+# plot_regional_sankey_method_habitat(regional_artis, 2019, 2019)
+
+marine_cap_regions <- regional_artis %>%
+  filter(habitat == "marine" & method == "capture") %>%
+  group_by(exporter_region, importer_region) %>%
+    summarize(live_weight_t = sum(live_weight_t, na.rm = TRUE)) %>%
+    ungroup() %>%
+    make_long(exporter_region, importer_region, value = live_weight_t)
+
+marine_cap_regions$node <- factor(marine_cap_regions$node,
+                              levels = c("Europe", "Oceania", "Asia",
+                                         "South America", "North America",
+                                         "Africa"))
+
+marine_cap_p <- marine_cap_regions %>%
+  ggplot(aes(x = x, 
+               next_x = next_x, 
+               node = node, 
+               next_node = next_node,
+               fill = factor(node),
+               value = value,
+               label = node)) +
+    geom_sankey(flow.alpha = 0.6) +
+    scale_fill_manual(values = region_colors) +
+    geom_sankey_label(size = 3, color = "white", fill = "gray40") +
+    theme_sankey(base_size = 18) +
+  labs(x = NULL) +
+    #labs(title = "Marine", x = NULL, y = "CAPTURE") +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_blank(),
+    plot.title = element_text(hjust = 0.5),
+    plot.margin = margin(c(0,0,0,0), unit = "mm")
+    )
+
+marine_cap_p
+```
+
+```{r marine_aqua, fig.height = 2, fig.width = 2}
+marine_aqua_regions <- regional_artis %>%
+  filter(habitat == "marine" & method == "aquaculture") %>%
+  group_by(exporter_region, importer_region) %>%
+    summarize(live_weight_t = sum(live_weight_t, na.rm = TRUE)) %>%
+    ungroup() %>%
+    make_long(exporter_region, importer_region, value = live_weight_t)
+
+marine_aqua_regions$node <- factor(marine_aqua_regions$node,
+                              levels = c("Europe", "Oceania", "Asia",
+                                         "South America", "North America",
+                                         "Africa"))
+
+marine_aqua_p <- marine_aqua_regions %>%
+  ggplot(aes(x = x, 
+               next_x = next_x, 
+               node = node, 
+               next_node = next_node,
+               fill = factor(node),
+               value = value,
+               label = node)) +
+    geom_sankey(flow.alpha = 0.6) +
+    scale_fill_manual(values = region_colors) +
+    geom_sankey_label(size = 3, color = "white", fill = "gray40") +
+    theme_sankey(base_size = 18) +
+  labs(x = NULL) +
+    #labs(title = "Marine", x = NULL, y = "CAPTURE") +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_blank(),
+    plot.title = element_text(hjust = 0.5),
+    plot.margin = margin(c(0,0,0,0), unit = "mm")
+    )
+
+marine_aqua_p
+```
+
+```{r inland_cap, fig.height = 2, fig.width = 2}
+inland_cap_regions <- regional_artis %>%
+  filter(habitat == "inland" & method == "capture") %>%
+  group_by(exporter_region, importer_region) %>%
+    summarize(live_weight_t = sum(live_weight_t, na.rm = TRUE)) %>%
+    ungroup() %>%
+    make_long(exporter_region, importer_region, value = live_weight_t)
+
+inland_cap_regions$node <- factor(inland_cap_regions$node,
+                              levels = c("Europe", "Oceania", "Asia",
+                                         "South America", "North America",
+                                         "Africa"))
+
+inland_cap_p <- inland_cap_regions %>%
+  ggplot(aes(x = x, 
+               next_x = next_x, 
+               node = node, 
+               next_node = next_node,
+               fill = factor(node),
+               value = value,
+               label = node)) +
+    geom_sankey(flow.alpha = 0.6) +
+    scale_fill_manual(values = region_colors) +
+    geom_sankey_label(size = 3, color = "white", fill = "gray40") +
+    theme_sankey(base_size = 18) +
+  labs(x = NULL) +
+    #labs(title = "Marine", x = NULL, y = "CAPTURE") +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_blank(),
+    plot.title = element_text(hjust = 0.5),
+    plot.margin = margin(c(0,0,0,0), unit = "mm")
+    )
+
+inland_cap_p
+```
+
+```{r inland_aqua, fig.height = 2, fig.width = 2}
+inland_aqua_regions <- regional_artis %>%
+  filter(habitat == "inland" & method == "aquaculture") %>%
+  group_by(exporter_region, importer_region) %>%
+    summarize(live_weight_t = sum(live_weight_t, na.rm = TRUE)) %>%
+    ungroup() %>%
+    make_long(exporter_region, importer_region, value = live_weight_t)
+
+inland_aqua_regions$node <- factor(inland_aqua_regions$node,
+                              levels = c("Europe", "Oceania", "Asia",
+                                         "South America", "North America",
+                                         "Africa"))
+
+inland_aqua_p <- inland_aqua_regions %>%
+  ggplot(aes(x = x, 
+               next_x = next_x, 
+               node = node, 
+               next_node = next_node,
+               fill = factor(node),
+               value = value,
+               label = node)) +
+    geom_sankey(flow.alpha = 0.6) +
+    scale_fill_manual(values = region_colors) +
+    geom_sankey_label(size = 3, color = "white", fill = "gray40") +
+    theme_sankey(base_size = 18) +
+  labs(x = NULL) +
+    #labs(title = "Marine", x = NULL, y = "CAPTURE") +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_blank(),
+    plot.title = element_text(hjust = 0.5),
+    plot.margin = margin(c(0,0,0,0), unit = "mm")
+    )
+
+inland_aqua_p
+```
+```{r regional_sankey_by_source, fig.height = 2.5, fig.width = 3}
+ggarrange(marine_cap_p, inland_cap_p,
+            marine_aqua_p, inland_aqua_p,
+            ncol = 2, nrow = 2,
+          labels = c("a", "b", "c", "d"))
+          # labels = c("Marine Capture", "Inland Capture",
+          #            "Marine Aquaculture", "Inland Aquaculture"))
+
+ggsave(file.path(outdir, "regional_sankey_by_source.png"))
+```
+
 ```{r si_top_exporters, fig.height = 5, fig.width = 4}
 
 top_exporters_old <- read.csv(file.path(datadir, "top_exporters_old.csv")) %>%
@@ -690,5 +871,79 @@ ggplot() +
   theme(legend.position = "bottom")
 
 ggsave(file.path(outdir, "custom_artis_ts.png"))
+```
+
+```{r dom_source_ts, fig.height = 4, fig.width = 6}
+dom_source_ts <- read.csv(file.path(datadir, "dom_source_ts.csv"))
+
+dom_source_ts_p <- dom_source_ts %>%
+  filter(dom_source != "error export") %>%
+  ggplot(aes(x = year, y = live_weight_t / 1000000, color = dom_source)) +
+  geom_line() +
+  scale_color_manual(values = c("#D38F35", "#114F59")) +
+  theme_bw() +
+  labs(x = "", y = "Live weight\nmillion tonnes", color = "Source") +
+  theme(
+    legend.position = "bottom",
+    legend.box.margin=margin(t = -25)
+  )
+
+dom_source_ts_p
+```
+
+```{r dom_source_by_habitat_ts, fig.height = 4, fig.width = 7}
+dom_source_by_habitat_method <- read.csv(file.path(datadir, "dom_source_by_habitat_method.csv"))
+
+dom_source_by_habitat_method_p <- dom_source_by_habitat_method %>%
+  # Set factor levels
+  mutate(habitat_method = factor(habitat_method, levels = c("marine capture", "inland capture",
+                                                            "marine aquaculture", "inland aquaculture",
+                                                            "unknown" ))) %>%
+  ggplot(aes(x = year, y = live_weight_t / 1000000, fill = habitat_method)) +
+  geom_area() +
+  scale_fill_manual(values = habitat_source_colors) +
+  theme_bw() +
+  labs(x = "", y = "Live weight\nmillion tonnes", fill = "Source") +
+  facet_wrap(~dom_source) +
+  theme(
+    legend.position = "bottom",
+    panel.spacing = unit(5, "mm"),
+    legend.box.margin=margin(t = -15)
+  )
+
+dom_source_by_habitat_method_p
+```
+
+```{r dom_source_overview, fig.height = 5, fig.width = 7}
+ggarrange(
+  dom_source_ts_p,
+  dom_source_by_habitat_method_p,
+  nrow = 2,
+  labels = c("a", "b")
+)
+
+ggsave(file.path(outdir, "dom_source_2019_overview.png"))
+```
+
+```{r top_processing_countries_by_source, fig.height = 4, fig.width = 6}
+
+top_processing_by_source <- read.csv(file.path(datadir, "top_processing_by_source.csv"))
+
+top_processing_by_source %>%
+  filter(year == 2019) %>%
+  # Set factor levels
+  mutate(habitat_method = factor(habitat_method, levels = c("marine capture", "inland capture",
+                                                            "marine aquaculture", "inland aquaculture",
+                                                            "unknown" ))) %>%
+  ggplot(aes(x = live_weight_t / 1000000, y = reorder(exporter_iso3c, ranking), fill = habitat_method)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = habitat_source_colors) +
+  scale_y_reordered() +
+  theme_bw() +
+  labs(x = "Live weight million tonnes", y = "", fill = "Source") +
+  facet_wrap(~habitat_method, scales = "free_y") +
+  theme(legend.position = "none")
+
+ggsave(file.path(outdir, "foreign_exports_2019_by_source.png"))
 ```
 

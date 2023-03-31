@@ -51,7 +51,7 @@ write.csv(fig4c_data, file.path(outdir, "fig4c_data.csv"), row.names = FALSE)
 ```
 
 
-```{r fig4a_old}
+```{r fig4a_old, eval = FALSE}
 fig4a_data <- read.csv(file.path(datadir, "fig4a_data.csv"))
 
 fig4a <- fig4a_data %>%
@@ -90,7 +90,7 @@ fig4a <- diversity %>%
 fig4a
 ```
 
-```{r fig4b_old}
+```{r fig4b_old, eval=FALSE}
 fig4b_data <- read.csv(file.path(datadir, "fig4b_data.csv"))
 
 fig4b <- fig4b_data %>%
@@ -127,7 +127,8 @@ fig4b <- diversity %>%
 fig4b
 ```
 
-```{r fig4c, eval=FALSE}
+
+```{r fig4c}
 fig4c_data <- read.csv(file.path(datadir, "fig4c_data.csv"))
 
 fig4c <- fig4c_data %>%
@@ -151,7 +152,7 @@ fig4c <- fig4c_data %>%
 
 fig4c
 ```
-```{r fig4d, eval=FALSE}
+```{r fig4d}
 fig4d_data <- read.csv(file.path(datadir, "fig4c_data.csv"))
 
 fig4d <- fig4d_data %>%
@@ -176,7 +177,7 @@ fig4d <- fig4d_data %>%
 fig4d
 ```
 
-```{r fig4, fig.height = 5, fig.width = 7, eval=FALSE}
+```{r fig4, fig.height = 5, fig.width = 7}
 fig4 <- ggarrange(
   ggarrange(
     fig4a, fig4b,
@@ -201,7 +202,7 @@ fig4
 ggsave(file.path(outdir, "fig4.png"))
 ```
 
-```{r fig4_old, fig.height = 7, fig.width = 7, eval=FALSE}
+```{r fig4_old, fig.height = 7, fig.width = 7, eval = FALSE}
 fig4 <- ggarrange(fig4a,
                   fig4b,
           ggarrange(fig4d,

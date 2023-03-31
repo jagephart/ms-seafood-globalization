@@ -454,6 +454,27 @@ write.csv(fig3d_data, file.path(outdir, "fig3d_data.csv"), row.names = FALSE)
 # SUPPLEMENTARY FIGURES
 #-------------------------------------------------------------------------------
 
+regional_artis <- artis %>%
+  rename(habitat = environment) %>%
+  group_by(exporter_iso3c, importer_iso3c, habitat, method, year) %>%
+  summarize(live_weight_t = sum(live_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  left_join(
+    country_metadata %>%
+      select(exporter_iso3c = iso3c, exporter_region = owid_region),
+    by = c("exporter_iso3c")
+  ) %>%
+  left_join(
+    country_metadata %>%
+      select(importer_iso3c = iso3c, importer_region = owid_region),
+    by = c("importer_iso3c")
+  ) %>%
+  group_by(exporter_region, importer_region, habitat, method, year) %>%
+  summarize(live_weight_t = sum(live_weight_t, na.rm = TRUE)) %>%
+  ungroup()
+
+write.csv(regional_artis, file.path(outdir, "regional_artis_by_source.csv"), row.names = FALSE)
+
 # Top Trading Partners old (1996 - 2000) vs recent (2016 - 2020)
 # Summarize total imports and exports by habitat and environment
 bilateral_habitat_method_summary <- artis %>%
@@ -926,26 +947,52 @@ true_species_trade <- true_species_producers %>%
 true_species_prod <- true_species_producers %>%
   left_join(prod,
             by = c("year", "iso3c"))
+#-------------------------------------------------------------------------------
+# Comparing foreign export ranges between max, midpoint and min estimations
+# Get Data
+con <- dbConnect(RPostgres::Postgres(),
+                 dbname=Sys.getenv("DB_NAME"),
+                 host=Sys.getenv("DB_HOST"),
+                 port=Sys.getenv("DB_PORT"),
+                 user=Sys.getenv("DB_USERNAME"),
+                 password=Sys.getenv("DB_PASSWORD"))
+
+# Check that connection is established by checking which tables are present
+dbListTables(con)
+
+mid_exports <- dbGetQuery(con, 'SELECT SUM(live_weight_t) AS live_weight_t, dom_source, year FROM snet GROUP BY dom_source, year;')
+min_exports <- dbGetQuery(con, 'SELECT SUM(live_weight_t) AS live_weight_t, dom_source, year FROM min_snet GROUP BY dom_source, year;')
+max_exports <- dbGetQuery(con, 'SELECT SUM(live_weight_t) AS live_weight_t, dom_source, year FROM max_snet GROUP BY dom_source, year;')
+
+dbDisconnect(con)
+#-------------------------------------------------------------------------------
+
+summary_dom_source <- mid_exports %>%
+  mutate(estimate = "midpoint") %>%
+  bind_rows(
+    min_exports %>%
+      mutate(estimate = "minimum")
+  ) %>%
+  bind_rows(
+    max_exports %>%
+      mutate(estimate = "maximum")
+  ) %>%
+  group_by(year, estimate) %>%
+  mutate(total_exports = sum(live_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(percent_export = 100 * live_weight_t / total_exports)
 
 
-# Supply / Consumption data
-# true_species_supply <- calculate_supply(true_species_trade, 
-#                            true_species_prod %>% 
-#                              rename(live_weight_t = production_t)) %>%
-#   # Add habitat-method column
-#   mutate(habitat_method = paste(habitat, method, sep =" ")) %>% 
-#   mutate(habitat_method = case_when(
-#     str_detect(habitat_method, "unknown") ~ "unknown", 
-#     TRUE ~ habitat_method
-#   )) %>% 
-#   # Set factor levels
-#   mutate(habitat_method = factor(habitat_method, levels = c("marine capture", "inland capture",
-#                                                             "marine aquaculture", "inland aquaculture",
-#                                                             "unknown" ))) %>% 
-#   left_join(country_metadata %>% 
-#               select(iso3c, "region" = "owid_region"), by = "iso3c") %>% 
-#   mutate(supply_no_error = case_when(supply_no_error < 0 ~ 0,
-#                                      TRUE ~ supply_no_error))
+summary_dom_source %>%
+  filter(dom_source == "foreign export") %>%
+  ggplot(aes(x = year, y = percent_export, color = estimate)) +
+  geom_line(linewidth = 1) +
+  scale_color_manual(values = c("#264653", "#e9c46a", "#e76f51")) +
+  theme_bw() +
+  labs(x = "Year", y = "Percent of total exports", color = "Estimate") +
+  theme(
+    legend.position = "bottom"
+  )
 
 #-------------------------------------------------------------------------------
 # Results
@@ -1016,3 +1063,64 @@ consumption_foreign <- supply %>%
 
 write.csv(consumption_foreign, file.path(outdir, "consumption_foreign.csv"), row.names = FALSE)
 
+
+# Processing
+
+dom_source_artis <- artis %>%
+  filter(dom_source != "error export")
+
+dom_source_ts <- artis %>%
+  group_by(dom_source, year) %>%
+  summarize(live_weight_t = sum(live_weight_t, na.rm = TRUE)) %>%
+  ungroup()
+
+write.csv(dom_source_ts, file.path(outdir, "dom_source_ts.csv"), row.names = FALSE)
+
+dom_source_by_habitat_method <- dom_source_artis %>%
+  group_by(dom_source, habitat_method, year) %>%
+  summarize(live_weight_t = sum(live_weight_t, na.rm = TRUE)) %>%
+  ungroup()
+
+write.csv(dom_source_by_habitat_method, file.path(outdir, "dom_source_by_habitat_method.csv"), row.names = FALSE)
+
+foreign_exports <- artis %>%
+  filter(dom_source == "foreign export")
+
+top_processing_countries <- foreign_exports %>%
+  group_by(exporter_iso3c, year) %>%
+  summarize(live_weight_t = sum(live_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(year) %>%
+  slice_max(n = 10, order_by = live_weight_t) %>%
+  mutate(ranking = rank(live_weight_t)) %>%
+  ungroup()
+
+top_processing_countries_by_source <- foreign_exports %>%
+  group_by(exporter_iso3c, habitat_method, year) %>%
+  summarize(live_weight_t = sum(live_weight_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(habitat_method, year) %>%
+  slice_max(n = 10, order_by = live_weight_t) %>%
+  mutate(ranking = rank(live_weight_t)) %>%
+  ungroup() %>%
+  mutate(exporter_iso3c = reorder_within(exporter_iso3c, ranking, habitat_method))
+
+write.csv(top_processing_countries_by_source, file.path(outdir, "top_processing_by_source.csv"), row.names = FALSE)
+
+top_processing_countries %>%
+  filter(year == 2019) %>%
+  ggplot(aes(x = live_weight_t, y = reorder(exporter_iso3c, ranking))) +
+  geom_bar(stat = "identity") +
+  scale_y_reordered() +
+  theme_bw() +
+  labs(x = "Re-exports (Live weight tonnes)", y = "Processing Country")
+
+top_processing_countries_by_source %>%
+  filter(year == 2019) %>%
+  ggplot(aes(x = live_weight_t / 1000000, y = reorder(exporter_iso3c, ranking), fill = habitat_method)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = habitat_source_colors) +
+  scale_y_reordered() +
+  theme_bw() +
+  labs(x = "Re-exports (Live weight million tonnes)", y = "Processing Country") +
+  facet_wrap(~habitat_method, scales = "free_y")
