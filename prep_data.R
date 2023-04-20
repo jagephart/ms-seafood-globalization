@@ -16,7 +16,7 @@ library(tidytext)
 #-------------------------------------------------------------------------------
 # Directory listing
 
-outdir <- "/Volumes/jgephart/ARTIS/Outputs/ms_seafood_globalization/2023031"
+outdir <- "/Volumes/jgephart/ARTIS/Outputs/ms_seafood_globalization/20230420"
 outdir <- "outputs"
 
 #-------------------------------------------------------------------------------
@@ -291,6 +291,8 @@ write.csv(artis_region, file.path(outdir, "artis_region.csv"), row.names = FALSE
 consumption_dir <- "/Volumes/jgephart/ARTIS/Outputs/consumption/consumption_20230331"
 #consumption_dir <- "../ARTIS/qa/consumption_20230331"
 supply <- read.csv(file.path(consumption_dir, "summary_consumption.csv"))
+supply_min <- read.csv(file.path(consumption_dir, "consumption_min", "summary_consumption.csv"))
+supply_max <- read.csv(file.path(consumption_dir, "consumption_max", "summary_consumption.csv"))
 
 supply <- supply %>%
   # Remove observations where supply is 0
@@ -307,7 +309,49 @@ supply <- supply %>%
   rename(supply_domestic = domestic_consumption_t,
          supply_foreign = foreign_consumption_t)
 
+supply_min <- supply_min %>%
+  # Remove observations where supply is 0
+  filter(supply > 0) %>%
+  mutate(habitat_method = paste(habitat, method, sep = " ")) %>%
+  mutate(habitat_method = case_when(
+    str_detect(habitat_method, "unknown") ~ "unknown", 
+    TRUE ~ habitat_method
+  )) %>%
+  # Set factor levels
+  mutate(habitat_method = factor(habitat_method, levels = c("marine capture", "inland capture",
+                                                            "marine aquaculture", "inland aquaculture",
+                                                            "unknown" ))) %>%
+  rename(supply_domestic = domestic_consumption_t,
+         supply_foreign = foreign_consumption_t)
+
+supply_max <- supply_max %>%
+  # Remove observations where supply is 0
+  filter(supply > 0) %>%
+  mutate(habitat_method = paste(habitat, method, sep = " ")) %>%
+  mutate(habitat_method = case_when(
+    str_detect(habitat_method, "unknown") ~ "unknown", 
+    TRUE ~ habitat_method
+  )) %>%
+  # Set factor levels
+  mutate(habitat_method = factor(habitat_method, levels = c("marine capture", "inland capture",
+                                                            "marine aquaculture", "inland aquaculture",
+                                                            "unknown" ))) %>%
+  rename(supply_domestic = domestic_consumption_t,
+         supply_foreign = foreign_consumption_t)
+
 supply <- supply %>%
+  left_join(
+    pop,
+    by = c("iso3c", "year")
+  )
+
+supply_max <- supply_max %>%
+  left_join(
+    pop,
+    by = c("iso3c", "year")
+  )
+
+supply_min <- supply_min %>%
   left_join(
     pop,
     by = c("iso3c", "year")
@@ -382,7 +426,7 @@ write.csv(fig3b_data, file.path(outdir, "fig3b_data.csv"), row.names = FALSE)
 
 # Figure 3c
 # Global percent of supply that is domestic/foreign
-fig3c_data <- supply %>%
+supply_year_summary <- supply %>%
   filter(region != "Other nei") %>%
   group_by(year) %>%
   summarise(supply_domestic = 100 * sum(supply_domestic) / sum(supply),
@@ -390,6 +434,36 @@ fig3c_data <- supply %>%
   pivot_longer(cols = supply_domestic:supply_foreign, 
                names_to = "supply_source", values_to = "supply_percent") %>%
   mutate(supply_source = gsub("supply_", "", supply_source))
+
+supply_year_summary_max <- supply_max %>%
+  filter(region != "Other nei") %>%
+  group_by(year) %>%
+  summarise(supply_domestic = 100 * sum(supply_domestic) / sum(supply),
+            supply_foreign = 100 * sum(supply_foreign) / sum(supply)) %>%
+  pivot_longer(cols = supply_domestic:supply_foreign, 
+               names_to = "supply_source", values_to = "supply_percent") %>%
+  mutate(supply_source = gsub("supply_", "", supply_source))
+
+supply_year_summary_min <- supply_min %>%
+  filter(region != "Other nei") %>%
+  group_by(year) %>%
+  summarise(supply_domestic = 100 * sum(supply_domestic) / sum(supply),
+            supply_foreign = 100 * sum(supply_foreign) / sum(supply)) %>%
+  pivot_longer(cols = supply_domestic:supply_foreign, 
+               names_to = "supply_source", values_to = "supply_percent") %>%
+  mutate(supply_source = gsub("supply_", "", supply_source))
+
+fig3c_data <- supply_year_summary %>%
+  full_join(
+    supply_year_summary_max %>%
+      rename(supply_max_percent = supply_percent),
+    by = c("year", "supply_source")
+  ) %>%
+  full_join(
+    supply_year_summary_min %>%
+      rename(supply_min_percent = supply_percent),
+    by = c("year", "supply_source")
+  )
 
 write.csv(fig3c_data, file.path(outdir, "fig3c_data.csv"), row.names = FALSE)
 
@@ -789,46 +863,46 @@ write.csv(import_concentration_habitat_method_n_countries, file.path(outdir, "im
 #-------------------------------------------------------------------------------
 # Custom ARTIS timeseries (based on different HS versions used)
 
-# hs_version_datadir <- "/Volumes/jgephart/ARTIS/Outputs/S_net/snet_20230328/snet"
-# 
-# # Based on snet midpoint estimation
-# hs_versions <- c("96", "02", "07", "12", "17")
-# 
-# artis_ts <- data.frame()
-# 
-# for (i in 1:length(hs_versions)) {
-#   curr_hs <- hs_versions[i]
-#   print(curr_hs)
-#   curr_fp <- file.path(hs_version_datadir, paste("HS", curr_hs, "/midpoint_artis_habitat_prod_ts_HS", curr_hs, ".csv", sep = ""))
-#   print(curr_fp)
-#   curr_artis <- read.csv(curr_fp) %>%
-#     mutate(hs_version = paste("HS", curr_hs, sep = "")) %>%
-#     group_by(year, hs_version) %>%
-#     summarize(live_weight_t = sum(live_weight_t, na.rm = TRUE)) %>%
-#     ungroup()
-# 
-#   artis_ts <- artis_ts %>%
-#     bind_rows(curr_artis)
-# }
-# 
-# custom_ts <- artis_ts %>%
-#   filter(
-#     # Use HS96 from 1996-2003 (inclusive)
-#     ((hs_version == "HS96") & (year <= 2003)) |
-#       # Use HS02 from 2004-2009 (inclusive)
-#       ((hs_version == "HS02") & (year >= 2004 & year <= 2009)) |
-#       # Use HS07 from 2010-2012 (inclusive)
-#       ((hs_version == "HS07") & (year >= 2010 & year <= 2012)) |
-#       # Use HS12 from 2013-2019 (inclusive)
-#       ((hs_version == "HS12") & (year >= 2013 & year <= 2020))
-#   ) %>%
-#   mutate(hs_version = "Custom ARTIS Time series")
-# 
-# artis_ts <- artis_ts %>%
-#   bind_rows(custom_ts)
-# 
-# write.csv(artis_ts, file.path(outdir, "artis_ts.csv"), row.names = FALSE)
-# write.csv(custom_ts, file.path(outdir, "custom_ts.csv"), row.names = FALSE)
+hs_version_datadir <- "/Volumes/jgephart/ARTIS/Outputs/S_net/snet_20230331/snet"
+
+# Based on snet midpoint estimation
+hs_versions <- c("96", "02", "07", "12", "17")
+
+artis_ts <- data.frame()
+
+for (i in 1:length(hs_versions)) {
+  curr_hs <- hs_versions[i]
+  print(curr_hs)
+  curr_fp <- file.path(hs_version_datadir, paste("HS", curr_hs, "/midpoint_artis_habitat_prod_ts_HS", curr_hs, ".csv", sep = ""))
+  print(curr_fp)
+  curr_artis <- read.csv(curr_fp) %>%
+    mutate(hs_version = paste("HS", curr_hs, sep = "")) %>%
+    group_by(year, hs_version) %>%
+    summarize(product_weight_t = sum(product_weight_t, na.rm = TRUE)) %>%
+    ungroup()
+
+  artis_ts <- artis_ts %>%
+    bind_rows(curr_artis)
+}
+
+custom_ts <- artis_ts %>%
+  filter(
+    # Use HS96 from 1996-2003 (inclusive)
+    ((hs_version == "HS96") & (year <= 2003)) |
+      # Use HS02 from 2004-2009 (inclusive)
+      ((hs_version == "HS02") & (year >= 2004 & year <= 2009)) |
+      # Use HS07 from 2010-2012 (inclusive)
+      ((hs_version == "HS07") & (year >= 2010 & year <= 2012)) |
+      # Use HS12 from 2013-2019 (inclusive)
+      ((hs_version == "HS12") & (year >= 2013 & year <= 2020))
+  ) %>%
+  mutate(hs_version = "Custom ARTIS Time series")
+
+artis_ts <- artis_ts %>%
+  bind_rows(custom_ts)
+
+write.csv(artis_ts, file.path(outdir, "artis_ts.csv"), row.names = FALSE)
+write.csv(custom_ts, file.path(outdir, "custom_ts.csv"), row.names = FALSE)
 
 #-------------------------------------------------------------------------------
 # how many countries report with at least 75% true species
