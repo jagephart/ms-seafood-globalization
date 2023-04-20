@@ -839,11 +839,20 @@ ggsave(file.path(outdir, "regional_avg_annual_change.png"))
 ```
 
 ```{r ldc_net_exports_habitat_method}
-ldc_net_habitat_method_summary <- read.csv(file.path(datadir, "ldc_net_habitat_method_summary.csv"))
+ldc_net_habitat_method_summary <- read.csv(file.path(datadir, "ldc_net_habitat_method_summary.csv")) %>%
+  select(year, habitat_method, net_export)
+
+ldc_net_total <- ldc_net_habitat_method_summary %>%
+  group_by(year) %>%
+  summarise(net_export = sum(net_export)) %>%
+  mutate(habitat_method = "total")
+
+ldc_net_habitat_method_summary <- ldc_net_habitat_method_summary %>%
+  bind_rows(ldc_net_total)
 
 ldc_net_exports_by_source_plot <- ldc_net_habitat_method_summary %>%
   ggplot(aes(x = year, y = net_export/1000000, color = habitat_method)) +
-  geom_line() +
+  geom_line(size = 1) +
   scale_color_manual(values = habitat_source_colors) +
   labs(x = "", y = "Net export (million t)", color = "") +
   theme_minimal() +
@@ -877,10 +886,9 @@ ggsave(file.path(outdir, "custom_artis_ts.png"))
 dom_source_ts <- read.csv(file.path(datadir, "dom_source_ts.csv"))
 
 dom_source_ts_p <- dom_source_ts %>%
-  filter(dom_source != "error export") %>%
   ggplot(aes(x = year, y = live_weight_t / 1000000, color = dom_source)) +
   geom_line() +
-  scale_color_manual(values = c("#D38F35", "#114F59", "grey")) +
+  scale_color_manual(values = c("#D38F35", "grey40", "#114F59")) +
   theme_bw() +
   labs(x = "", y = "Live weight\nmillion tonnes", color = "Source") +
   theme(

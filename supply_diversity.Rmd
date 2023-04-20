@@ -233,3 +233,9 @@ n_import_exceeds_prod <- national_supply_diversity %>%
   nrow()
 
 ```
+
+
+# Methods
+
+## Estimating supply diversity
+	We separately calculated the Shannon diversity for the overall supply, the diversity of supply sourced from domestic products, and the supply sourced from foreign products. Additionally, we calculated the Shannon diversity of domestic production, imports, and exports. One notable limitation of applying this measure is that instances where production or trade is only estimated at the genus or higher level will be interpreted in the calculation as a single species. Consequently, countries with low species resolution will generally appear to have less diverse production, limiting the ability to compare supply diversity across countries. To address this issue, we first matched scientific groups to species based on data in FishBase50 and SealifeBase53. We then calculated the global production distribution within each phylogenetic group based on a lognormal distribution of produced species. Proportions for each potential species within a phylogenetic group were derived from the lognormal global distribution. These proportions were matched to species in two ways. For species that had been previously reported by a country they were matched in order by the volume reported for that year and reported species were followed by the unreported species. This meant that, for a given year, the highest proportion derived from the lognormal distribution was matched to the species that the country had reported the largest volume for

@@ -288,12 +288,13 @@ write.csv(artis_region, file.path(outdir, "artis_region.csv"), row.names = FALSE
 # Figure 3
 
 # Supply / Consumption data
-consumption_dir <- "/Volumes/jgephart/ARTIS/Outputs/consumption/consumption_20230328"
-#consumption_dir <- "../ARTIS/qa/consumption_20230328"
+consumption_dir <- "/Volumes/jgephart/ARTIS/Outputs/consumption/consumption_20230331"
+#consumption_dir <- "../ARTIS/qa/consumption_20230331"
 supply <- read.csv(file.path(consumption_dir, "summary_consumption.csv"))
 
 supply <- supply %>%
-  filter(!is.na(habitat) & !is.na(method)) %>%
+  # Remove observations where supply is 0
+  filter(supply > 0) %>%
   mutate(habitat_method = paste(habitat, method, sep = " ")) %>%
   mutate(habitat_method = case_when(
     str_detect(habitat_method, "unknown") ~ "unknown", 
@@ -333,7 +334,6 @@ write.csv(global_supply_per_cap, file.path(outdir, "global_supply_per_cap.csv"),
 # Figure 3a
 # Calculate per capita supply by region and source
 supply_total <- supply %>%
-  filter(!is.na(habitat_method)) %>%
   group_by(iso3c, region, year, habitat_method) %>%
   summarise(supply = sum(supply),
             supply_domestic = sum(supply_domestic),
@@ -343,7 +343,6 @@ supply_total <- supply %>%
   ungroup()
 
 fig3a_data <- supply_total %>%
-  filter(!is.na(habitat_method)) %>%
   filter(region != "Other nei") %>%
   group_by(year, habitat_method) %>%
   summarize(supply = sum(supply)) %>%
