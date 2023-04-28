@@ -400,9 +400,14 @@ fig3b
 # Global percent of supply by domestic / foreign exports
 fig3c_data <- read.csv(file.path(datadir, "fig3c_data.csv"))
 
-fig3c <- fig3c_data %>%
-  ggplot(aes(x = year, y = supply_percent, color = supply_source)) +
-  geom_line() +
+fig3c <- ggplot() +
+  geom_ribbon(data = fig3c_data %>%
+                filter(supply_source == "domestic"),
+              aes(ymin = supply_min_percent, ymax = supply_max_percent, x = year), fill = "grey70") +
+  geom_ribbon(data = fig3c_data %>%
+                filter(supply_source == "foreign"),
+              aes(ymin = supply_min_percent, ymax = supply_max_percent, x = year), fill = "grey70") +
+  geom_line(data = fig3c_data, aes(x = year, y = supply_percent, color = supply_source)) +
   scale_color_manual(values = c("#F37542", "#0F2D59")) +
   labs(x = "", y = "Percent of supply", color = "Origin") +
   lims(y = c(0,100)) +
@@ -872,8 +877,8 @@ artis_ts <- read.csv(file.path(datadir, "artis_ts.csv"))
 custom_ts <- read.csv(file.path(datadir, "custom_ts.csv"))
 
 ggplot() +
-  geom_line(data = artis_ts, aes(x = year, y = live_weight_t, color = hs_version), linetype = "dashed", linewidth = 1) +
-  geom_line(data = custom_ts, aes(x = year, y = live_weight_t, color = hs_version), linewidth = 0.5, linetype = "solid") +
+  geom_line(data = artis_ts, aes(x = year, y = product_weight_t, color = hs_version), linetype = "dashed", linewidth = 1) +
+  geom_line(data = custom_ts, aes(x = year, y = product_weight_t, color = hs_version), linewidth = 0.5, linetype = "solid") +
   scale_color_manual(
     values = c("Custom ARTIS Time series" = "black", "HS96" = "#741A32", "HS02" = "#B34232", "HS07" = "#D38F35", "HS12" = "red", "HS17" = "#114F59")
   ) +
