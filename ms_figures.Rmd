@@ -405,6 +405,7 @@ fig3c <- fig3c_data %>%
   geom_line() +
   scale_color_manual(values = c("#F37542", "#0F2D59")) +
   labs(x = "", y = "Percent of supply", color = "Origin") +
+  lims(y = c(0,100)) +
   theme_bw() +
   theme(legend.position = "bottom",
         axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
@@ -421,6 +422,7 @@ fig3d <- fig3d_data %>%
   scale_color_manual(values = c("#F37542", "#0F2D59")) +
   labs(x = "", y = "Percent of supply", color = "Origin") +
   facet_wrap(~region) +
+  lims(y = c(0,100)) +
   theme_bw() +
   theme(legend.position = "bottom",
         axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
