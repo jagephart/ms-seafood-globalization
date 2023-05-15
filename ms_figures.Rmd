@@ -401,12 +401,12 @@ fig3b
 fig3c_data <- read.csv(file.path(datadir, "fig3c_data.csv"))
 
 fig3c <- ggplot() +
-  geom_ribbon(data = fig3c_data %>%
-                filter(supply_source == "domestic"),
-              aes(ymin = supply_min_percent, ymax = supply_max_percent, x = year), fill = "grey70") +
-  geom_ribbon(data = fig3c_data %>%
-                filter(supply_source == "foreign"),
-              aes(ymin = supply_min_percent, ymax = supply_max_percent, x = year), fill = "grey70") +
+  # geom_ribbon(data = fig3c_data %>%
+  #               filter(supply_source == "domestic"),
+  #             aes(ymin = supply_min_percent, ymax = supply_max_percent, x = year), fill = "grey70") +
+  # geom_ribbon(data = fig3c_data %>%
+  #               filter(supply_source == "foreign"),
+  #             aes(ymin = supply_min_percent, ymax = supply_max_percent, x = year), fill = "grey70") +
   geom_line(data = fig3c_data, aes(x = year, y = supply_percent, color = supply_source)) +
   scale_color_manual(values = c("#F37542", "#0F2D59")) +
   labs(x = "", y = "Percent of supply", color = "Origin") +
@@ -855,7 +855,10 @@ ldc_net_total <- ldc_net_habitat_method_summary %>%
   mutate(habitat_method = "total")
 
 ldc_net_habitat_method_summary <- ldc_net_habitat_method_summary %>%
-  bind_rows(ldc_net_total)
+  bind_rows(ldc_net_total) %>%
+  mutate(habitat_method = factor(habitat_method, 
+                                 levels = c("marine capture", "inland capture", 
+                                            "marine aquaculture", "inland aquaculture", "total")))
 
 ldc_net_exports_by_source_plot <- ldc_net_habitat_method_summary %>%
   ggplot(aes(x = year, y = net_export/1000000, color = habitat_method)) +
@@ -960,27 +963,5 @@ top_processing_by_source %>%
   theme(legend.position = "none")
 
 ggsave(file.path(outdir, "foreign_exports_2019_by_source.png"))
-```
-
-```{r, eval=FALSE}
-# Plots moved from end of prep_data
-top_processing_countries %>%
-  filter(year == 2019) %>%
-  ggplot(aes(x = live_weight_t, y = reorder(exporter_iso3c, ranking))) +
-  geom_bar(stat = "identity") +
-  scale_y_reordered() +
-  theme_bw() +
-  labs(x = "Re-exports (Live weight tonnes)", y = "Processing Country")
-
-top_processing_countries_by_source %>%
-  filter(year == 2019) %>%
-  ggplot(aes(x = live_weight_t / 1000000, y = reorder(exporter_iso3c, ranking), fill = habitat_method)) +
-  geom_bar(stat = "identity") +
-  scale_fill_manual(values = habitat_source_colors) +
-  scale_y_reordered() +
-  theme_bw() +
-  labs(x = "Re-exports (Live weight million tonnes)", y = "Processing Country") +
-  facet_wrap(~habitat_method, scales = "free_y")
-
 ```
 
