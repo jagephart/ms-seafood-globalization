@@ -33,9 +33,11 @@ con <- dbConnect(RPostgres::Postgres(),
 # Check that connection is established by checking which tables are present
 dbListTables(con)
 
-# ARTIS dataframe
-artis <- dbGetQuery(con, "SELECT * FROM snet") %>%
-  select(-record_id) 
+# # ARTIS dataframe
+# artis <- dbGetQuery(con, "SELECT * FROM snet") %>%
+#   select(-record_id) 
+
+artis <- read.csv("/Volumes/jgephart/ARTIS/Outputs/S_net/snet_20230412/custom_ts/mid_custom_ts.csv")
 
 artis_fm <- artis %>% 
   filter(hs6 == "230120") %>% 
@@ -89,69 +91,6 @@ write.csv(artis_fm, file.path(outdir, "artis_fm.csv"), row.names = FALSE)
 
 # Write out the bilater non-food trade data to use in supply calculations
 write.csv(artis_nonfood, file.path(outdir, "artis_nonfood.csv"), row.names = FALSE)
-
-# hs_versions <- c("96", "02", "07", "12", "17")
-# datadir <- "../ARTIS/qa/model_inputs_20221129_NEW"
-# 
-# hs_clade_match <- data.frame()
-# for (i in 1:length(hs_versions)) {
-#   curr_hs <- hs_versions[i]
-#   print(curr_hs)
-#   
-#   # Determine most specific clade of each HS code (but if clade is not reported in production data (i.e., hs_taxa_match$SciName), return NA)
-#   # To match to clade, even if not reported in production data, set match_to_prod to FALSE
-#   curr_hs_clade_match <- match_hs_to_clade(hs_taxa_match = read.csv(file.path(datadir, paste("hs-taxa-match_HS", curr_hs, ".csv", sep = ""))) %>%
-#                                              select(-c(sciname_habitat, code_habitat)),
-#                                            prod_taxa_classification = read.csv(file.path(datadir, "clean_fao_taxa.csv")),
-#                                            match_to_prod = FALSE) %>%
-#     # pad HS codes with zeroes
-#     mutate(Code = as.character(Code)) %>%
-#     mutate(Code = if_else(str_detect(Code, "^30"), true = str_replace(Code, pattern = "^30", replacement = "030"),
-#                           if_else(str_detect(Code, "^511"), true = str_replace(Code, pattern = "^511", replacement = "0511"),
-#                                   false = Code)))# %>%
-#   # # Filter down to just the codes in cc_m (recreated above from country_est)
-#   # filter(Code %in% cc_m)
-#   
-#   curr_hs_clade_match <- curr_hs_clade_match %>%
-#     mutate(hs_version = paste("HS", curr_hs, sep = ""))
-#   
-#   hs_clade_match <- hs_clade_match %>%
-#     bind_rows(curr_hs_clade_match)
-# }
-# 
-# hs_clade_scinames <- hs_clade_match %>%
-#   pull(hs_clade) %>%
-#   unique()
-# 
-# #-------------------------------------------------------------------------------
-# 
-# # Finding number of foreign exports that exceeded 100% imports
-# foreign_export_check_product <- artis_db %>%
-#   filter(dom_source == "foreign") %>%
-#   filter(!(sciname %in% hs_clade_scinames)) %>%
-#   group_by(exporter_iso3c, sciname, year) %>%
-#   summarize(foreign_product_weight_t = sum(product_weight_t, na.rm = TRUE)) %>%
-#   ungroup() %>%
-#   left_join(
-#     artis_db %>%
-#       # filter(!(sciname %in% hs_clade_scinames)) %>%
-#       group_by(importer_iso3c, sciname, year) %>%
-#       summarize(import_product_weight_t = sum(product_weight_t, na.rm = TRUE)) %>%
-#       ungroup(),
-#     by = c("exporter_iso3c"="importer_iso3c", "sciname", "year")
-#   ) %>%
-#   filter(foreign_product_weight_t > 1) %>%
-#   mutate(percent_import = 100 * foreign_product_weight_t / import_product_weight_t) %>%
-#   filter(!is.na(percent_import)) %>%
-#   arrange(desc(percent_import))
-# 
-# tmp_product <- foreign_export_check_product %>%
-#   filter(percent_import > 100) %>%
-#   mutate(difference = foreign_product_weight_t - import_product_weight_t)
-# 
-# tmp2_product <- tmp_product %>%
-#   group_by(year) %>%
-#   summarize(max_percent = max(percent_import), num_flows_exceeding = n())
 
 #-------------------------------------------------------------------------------
 # Summarize cleaned FAO production data
@@ -351,9 +290,7 @@ write.csv(artis_region, file.path(outdir, "artis_region.csv"), row.names = FALSE
 # Figure 3
 
 # Supply / Consumption data
-consumption_dir <- "/Volumes/jgephart/ARTIS/Outputs/consumption/consumption_20230331"
-#consumption_dir <- "../ARTIS/qa/consumption_20230331"
-#consumption_dir <- "../ARTIS/qa/snet_20230331"
+consumption_dir <- "/Volumes/jgephart/ARTIS/Outputs/consumption/consumption_20230412"
 supply <- read.csv(file.path(consumption_dir, "summary_consumption.csv"))
 supply_min <- read.csv(file.path(consumption_dir, "consumption_min", "summary_consumption.csv"))
 supply_max <- read.csv(file.path(consumption_dir, "consumption_max", "summary_consumption.csv"))
@@ -927,7 +864,7 @@ write.csv(import_concentration_habitat_method_n_countries, file.path(outdir, "im
 #-------------------------------------------------------------------------------
 # Custom ARTIS timeseries (based on different HS versions used)
 
-hs_version_datadir <- "/Volumes/jgephart/ARTIS/Outputs/S_net/snet_20230331/snet"
+hs_version_datadir <- "/Volumes/jgephart/ARTIS/Outputs/S_net/snet_20230412/snet"
 
 # Based on snet midpoint estimation
 hs_versions <- c("96", "02", "07", "12", "17")
@@ -1201,11 +1138,5 @@ top_processing_countries_by_source <- foreign_exports %>%
   mutate(exporter_iso3c = reorder_within(exporter_iso3c, ranking, habitat_method))
 
 write.csv(top_processing_countries_by_source, file.path(outdir, "top_processing_by_source.csv"), row.names = FALSE)
-
-hs_clade_match <- artis %>%
-  filter(dom_source == "error" | method == "unknown") %>%
-  pull(sciname) %>%
-  unique()
-
 
 
