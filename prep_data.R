@@ -17,7 +17,7 @@ library(tidytext)
 # Directory listing
 
 outdir <- "/Volumes/jgephart/ARTIS/Outputs/ms_seafood_globalization/20230428"
-outdir <- "outputs"
+outdir <- "outputs_06022024"
 
 #-------------------------------------------------------------------------------
 # Initial database pulls
@@ -34,10 +34,15 @@ con <- dbConnect(RPostgres::Postgres(),
 dbListTables(con)
 
 # # ARTIS dataframe
-# artis <- dbGetQuery(con, "SELECT * FROM snet") %>%
-#   select(-record_id) 
+artis <- dbGetQuery(con, "SELECT * FROM all_estimates_snet") %>%
+  select(-record_id)
 
-artis <- read.csv("/Volumes/jgephart/ARTIS/Outputs/S_net/snet_20230412/custom_ts/mid_custom_ts.csv")
+# artis <- read.csv("data/mid_custom_ts.csv") %>%
+#   mutate(hs6 = as.character(hs6)) %>%
+#   mutate(hs6 = case_when(
+#     str_length(hs6) == 5 ~ paste("0", hs6, sep = ""),
+#     TRUE ~ hs6
+#   ))
 
 artis_fm <- artis %>% 
   filter(hs6 == "230120") %>% 
@@ -55,6 +60,17 @@ artis <- artis %>%
 
 # Production dataframe
 prod <- dbGetQuery(con, "SELECT * FROM production") %>%
+  select(-record_id)
+
+# prod_sau <- dbGetQuery(con, "SELECT * FROM sau_production") %>%
+#   select(-record_id)
+
+# BACI data
+baci <- dbGetQuery(con, "SELECT * FROM baci") %>%
+  select(-record_id)
+
+# Consumption 
+consumption <- dbGetQuery(con, "SELECT * FROM complete_consumption") %>%
   select(-record_id)
 
 # Country metadata
@@ -290,7 +306,7 @@ write.csv(artis_region, file.path(outdir, "artis_region.csv"), row.names = FALSE
 # Figure 3
 
 # Supply / Consumption data
-consumption_dir <- "/Volumes/jgephart/ARTIS/Outputs/consumption/consumption_20230412"
+consumption_dir <- "data/consumption_20230412"
 supply <- read.csv(file.path(consumption_dir, "summary_consumption.csv"))
 supply_min <- read.csv(file.path(consumption_dir, "consumption_min", "summary_consumption.csv"))
 supply_max <- read.csv(file.path(consumption_dir, "consumption_max", "summary_consumption.csv"))

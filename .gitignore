@@ -52,4 +52,11 @@ outputs/
 # Powerpoint
 *.pptx
 
+# Temporary data folder
+data/*
 
+# Manuscript text
+ms/*
+
+# Archive
+Archive/*
