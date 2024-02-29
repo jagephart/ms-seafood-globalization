@@ -41,6 +41,7 @@ vignettes/*.pdf
 # Folders
 Archived_code/
 outputs/
+qa/
 
 # pdf and html files
 *.pdf
