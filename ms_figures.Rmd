@@ -6,8 +6,11 @@ output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
-
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
 library(tidyverse)
 library(countrycode)
 library(circlize)
@@ -29,8 +32,8 @@ library(ggpubr)
 
 ```{r load_data}
 # Set directories
-datadir <- "outputs"
-outdir <- "outputs"
+datadir <- "qa/outputs_20240221"
+outdir <- "qa/outputs_20240221"
 ```
 
 ```{r color_palettes}
@@ -76,10 +79,11 @@ fig1a <- fig1a_data %>%
   labs(y = "Exports\n(mil. t, live weight)", fill = "Source", x = "") +
   theme_bw() +
   theme(legend.position = "bottom",
-        axis.title.y = element_text(size = 16),
+        axis.title.y = element_text(size = 12),
         axis.text.x = element_text(size = 12),
         axis.text.y = element_text(size = 12),
-        legend.text = element_text(size = 9),
+        legend.title = element_text(size = 7),
+        legend.text = element_text(size = 6)
         )
 
 fig1a
@@ -97,17 +101,19 @@ fig1b_data <- read.csv(file.path(datadir, "fig_1b_data.csv")) %>%
 fig1b <- ggplot() +
   geom_line(data = fig1b_data, aes(x = year, y = percent_export, color = habitat_method)) +
   scale_color_manual(values = habitat_source_colors) +
-  labs(y = "% Production\nExported", x = "", color = "Source") +
+  labs(y = "% Production\nexported", x = "", color = "Source") +
   theme_bw() +
   theme(
-    text = element_text(size = 16)
+    text = element_text(size = 10),
+    legend.title = element_text(size = 7),
+    legend.text = element_text(size = 6)
   )
 
 fig1b
 ```
 
 
-## Figure 1 c: Degree or measure of degree distribution by production method and environment
+## Figure 1c: Degree or measure of degree distribution by production method and environment
 
 ```{r fig1c}
 fig1c_data <- read.csv(file.path(datadir, "fig_1c_data.csv"))
@@ -117,13 +123,15 @@ fig1c_out_degree <- fig1c_data %>%
                                  levels = c("marine capture", "inland capture", 
                                             "marine aquaculture", "inland aquaculture", "unknown"))) %>%
   ggplot(aes(x = year, y = all_in_degree, color = habitat_method)) +
-  geom_smooth() +
+  geom_smooth(alpha = 0.2) +
   scale_color_manual(values = habitat_source_colors) +
   labs(y = "Average\nno. export partners", color = "Source") + 
   theme_bw() +
   theme(
-    text = element_text(size = 16),
-    axis.title.x = element_blank()
+    text = element_text(size = 10),
+    axis.title.x = element_blank(),
+    legend.title = element_text(size = 7),
+    legend.text = element_text(size = 6)
   )
 
 fig1c_out_degree
@@ -161,7 +169,9 @@ fig1d <- ggplot() +
   lims(y = c(0, 30)) +
   theme_bw() +
   theme(
-    text = element_text(size = 16)
+    text = element_text(size = 10),
+    legend.title = element_text(size = 7),
+    legend.text = element_text(size = 6)
   )
 
 fig1d
@@ -178,13 +188,15 @@ fig1e <- ggplot() +
   lims(y = c(0, 30)) +
   theme_bw() +
   theme(
-    text = element_text(size = 16)
+    text = element_text(size = 10),
+    legend.title = element_text(size = 7),
+    legend.text = element_text(size = 6)
   )
 
 fig1e
 ```
 
-```{r fig1, fig.height = 4, fig.width = 4}
+```{r fig1, fig.height = 6, fig.width = 6}
 ggarrange(fig1a,
           ggarrange(fig1b,
                     fig1c_out_degree,
@@ -256,30 +268,17 @@ fig2a <- ggplot() +
   theme_bw() +
   theme(legend.position = "top",
         axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
-        strip.background = element_blank()) +
-  facet_wrap(~region, nrow = 1) 
-
-fig2a
-```
-
-
-```{r fig2a_old, eval=FALSE}
-# Imports by Region
-fig2a <- artis_region %>% 
-  ggplot(aes(x = year, y = live_weight_t/1000000, fill = exporter_region)) +
-  geom_area() +
-  labs(x = "", y = "", fill = "Exporter") +
-  scale_fill_manual(values = region_colors) +
-  facet_wrap(~importer_region, nrow = 1) +
-  theme_bw() +
-  theme(legend.position = "none",
         strip.background = element_blank(),
-        strip.text.x = element_blank(),
-        axis.text.x = element_blank(),
-        plot.margin=unit(c(0.5,0,0,0), "cm"))
+        plot.margin = unit(c(t=0, r=1, b=0, l=0.5), "cm")) +
+  facet_wrap(~region, nrow = 1)
+
+fig2a <- ggdraw(fig2a) +
+  draw_label("Net import", x = 0.97, y = 0.55, angle = 270, size = 9) +
+  draw_label("Net export", x = 0.97, y = 0.3, angle = 270, size = 9)
 
 fig2a
 ```
+
 
 ```{r fig2b}
 # Matrix of plots showcasing inter-regional trade trends
@@ -290,65 +289,32 @@ fig2b <- artis_region_method %>%
   ggplot(aes(x = year, y = live_weight_t/1000000, fill = habitat_method)) +
   geom_area() +
   scale_fill_manual(values = habitat_source_colors) +
-  labs(x = "", y = "Trade (million t, live weight)", color = "Ave. annual change in export \n(1000 t live weight)",
+  scale_y_continuous(position = "right") +
+  labs(x = "", y = "", color = "Ave. annual change in export \n(1000 t live weight)",
        fill = "Source") +
   theme_bw() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
         legend.position = "none",
-        strip.background = element_blank(), 
-        plot.margin = margin(t = 8, r = 8, l = 2, unit = "mm")) +
+        strip.background = element_blank(),
+        plot.margin = margin(t = 6, r = 7, l = 6, unit = "mm")) +
   facet_grid(rows = vars(exporter_region), cols = vars(importer_region), 
-             labeller = label_wrap_gen(width = 5), scales = "free")
+             labeller = label_wrap_gen(width = 5), scales = "free", switch = "y")
 
 fig2b <- ggdraw(fig2b) +
-  draw_label("Exporting region", x = 0.975, y = 0.5, angle = 270) +
-  draw_label("Importing region", x = 0.5, y = 0.975)
+  draw_label("Exporting region", x = 0.02, y = 0.5, angle = 90, size = 10) +
+  draw_label("Importing region", x = 0.5, y = 0.965, size = 10) +
+  draw_label("Trade (million t, live weight)", x = 0.96, y = 0.5, angle = 270, size = 10)
 
 fig2b
 ```
 
-```{r fig2c_old, eval=FALSE}
-# Figure 2c
-# Exports by Region
-fig2c <- artis_region %>% 
-  ggplot(aes(x = year, y = live_weight_t/1000000, fill = importer_region)) +
-  geom_area() +
-  labs(x = "", y = "", fill = "Importer") +
-  scale_fill_manual(values = region_colors) +
-  facet_wrap(~exporter_region, ncol = 1) +
-  theme_bw() +
-  theme(legend.position = "none",
-        strip.background = element_blank(),
-        strip.text.x = element_blank(),
-        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
-        plot.margin=unit(c(0,0.5,0,0), "cm"))
-
-fig2c
-```
-
-```{r fig2_old, eval=FALSE}
-# Overall Figure 2
-ggarrange(ggarrange(fig2a, NULL,
-                    ncol = 2, nrow = 1,
-                    widths = c(4.5, 1.25), labels = c("a", "")),
-          ggarrange(fig2b, 
-                    ggarrange(NULL, fig2c,
-                              ncol = 1, heights = c(0.3, 4)), 
-                    ncol = 2, nrow = 1,
-                    widths = c(4.5, 1), labels = c("b", "c")),
-          ncol = 1, nrow = 2, 
-          heights = c(1, 4.5))
-
-ggsave(file.path(outdir, "fig2.png"))
-```
-
-```{r fig2, fig.height=4, fig.width=3}
+```{r fig2, fig.height=8, fig.width=6.5}
 # Overall Figure 2
 ggarrange(ggarrange(fig2a, NULL,
                     ncol = 2, nrow = 1,
                     widths = c(4.5, 0.2), labels = c("a", "")), 
           fig2b, labels = c("", "b"),
-          ncol = 1, heights = c(1.75, 4))
+          ncol = 1, heights = c(3, 4))
 
 ggsave(file.path(outdir, "fig2.png"))
 ```
@@ -367,6 +333,7 @@ fig3a <- fig3a_data %>%
   geom_line() + 
   labs(y = "Per capita supply (kg)", x = "", color = "Source") +
   scale_color_manual(values = habitat_source_colors) +
+  guides(color = guide_legend(nrow = 1)) +
   theme_bw() +
   theme(legend.position = "bottom",
         axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) 
@@ -387,6 +354,7 @@ fig3b <- fig3b_data %>%
   geom_area() + 
   labs(y = "Per capita supply (kg)", x = "", fill = "Source") +
   scale_fill_manual(values = habitat_source_colors) +
+  guides(fill = guide_legend(nrow = 1)) +
   theme_bw() +
   theme(legend.position = "bottom",
         axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
@@ -401,12 +369,6 @@ fig3b
 fig3c_data <- read.csv(file.path(datadir, "fig3c_data.csv"))
 
 fig3c <- ggplot() +
-  # geom_ribbon(data = fig3c_data %>%
-  #               filter(supply_source == "domestic"),
-  #             aes(ymin = supply_min_percent, ymax = supply_max_percent, x = year), fill = "grey70") +
-  # geom_ribbon(data = fig3c_data %>%
-  #               filter(supply_source == "foreign"),
-  #             aes(ymin = supply_min_percent, ymax = supply_max_percent, x = year), fill = "grey70") +
   geom_line(data = fig3c_data, aes(x = year, y = supply_percent, color = supply_source)) +
   scale_color_manual(values = c("#F37542", "#0F2D59")) +
   labs(x = "", y = "Percent of supply", color = "Origin") +
@@ -436,7 +398,7 @@ fig3d <- fig3d_data %>%
 fig3d
 ```
 
-```{r fig3, fig.height = 4, fig.width = 5}
+```{r fig3, fig.height = 6, fig.width = 7}
 fig3 <- ggarrange(
   ggarrange(fig3a, fig3b, 
             common.legend = TRUE, nrow = 1, widths = c(1, 2),
@@ -455,9 +417,8 @@ ggsave(file.path(outdir, "fig3.png"))
 
 # Supplementary Figures
 
-```{r regional_sankey, fig.height = 2, fig.width = 2}
+```{r regional_sankey, fig.height = 3, fig.width = 3}
 regional_artis <- read.csv(file.path(datadir, "regional_artis_by_source.csv"))
-# plot_regional_sankey_method_habitat(regional_artis, 2019, 2019)
 
 marine_cap_regions <- regional_artis %>%
   filter(habitat == "marine" & method == "capture") %>%
@@ -481,7 +442,7 @@ marine_cap_p <- marine_cap_regions %>%
                label = node)) +
     geom_sankey(flow.alpha = 0.6) +
     scale_fill_manual(values = region_colors) +
-    geom_sankey_label(size = 3, color = "white", fill = "gray40") +
+    geom_sankey_label(size = 4, color = "white", fill = "gray40") +
     theme_sankey(base_size = 18) +
   labs(x = NULL) +
     #labs(title = "Marine", x = NULL, y = "CAPTURE") +
@@ -489,13 +450,16 @@ marine_cap_p <- marine_cap_regions %>%
     legend.position = "none",
     axis.text.x = element_blank(),
     plot.title = element_text(hjust = 0.5),
-    plot.margin = margin(c(0,0,0,0), unit = "mm")
+    plot.margin = margin(c(t=-0.5, r=-10, b=-1, l=-18), unit = "mm")
     )
+
+marine_cap_p <- ggdraw(marine_cap_p) +
+  draw_label("Marine capture", x = 0.5, y = 0.97, size = 9)
 
 marine_cap_p
 ```
 
-```{r marine_aqua, fig.height = 2, fig.width = 2}
+```{r marine_aqua, fig.height = 3, fig.width = 3}
 marine_aqua_regions <- regional_artis %>%
   filter(habitat == "marine" & method == "aquaculture") %>%
   group_by(exporter_region, importer_region) %>%
@@ -518,7 +482,7 @@ marine_aqua_p <- marine_aqua_regions %>%
                label = node)) +
     geom_sankey(flow.alpha = 0.6) +
     scale_fill_manual(values = region_colors) +
-    geom_sankey_label(size = 3, color = "white", fill = "gray40") +
+    geom_sankey_label(size = 4, color = "white", fill = "gray40") +
     theme_sankey(base_size = 18) +
   labs(x = NULL) +
     #labs(title = "Marine", x = NULL, y = "CAPTURE") +
@@ -526,13 +490,16 @@ marine_aqua_p <- marine_aqua_regions %>%
     legend.position = "none",
     axis.text.x = element_blank(),
     plot.title = element_text(hjust = 0.5),
-    plot.margin = margin(c(0,0,0,0), unit = "mm")
+    plot.margin = margin(c(t=-0.5, r=-10, b=-1, l=-18), unit = "mm")
     )
+
+marine_aqua_p <- ggdraw(marine_aqua_p) +
+  draw_label("Marine aquaculture", x = 0.5, y = 0.97, size = 9)
 
 marine_aqua_p
 ```
 
-```{r inland_cap, fig.height = 2, fig.width = 2}
+```{r inland_cap, fig.height = 3, fig.width = 3}
 inland_cap_regions <- regional_artis %>%
   filter(habitat == "inland" & method == "capture") %>%
   group_by(exporter_region, importer_region) %>%
@@ -555,7 +522,7 @@ inland_cap_p <- inland_cap_regions %>%
                label = node)) +
     geom_sankey(flow.alpha = 0.6) +
     scale_fill_manual(values = region_colors) +
-    geom_sankey_label(size = 3, color = "white", fill = "gray40") +
+    geom_sankey_label(size = 4, color = "white", fill = "gray40") +
     theme_sankey(base_size = 18) +
   labs(x = NULL) +
     #labs(title = "Marine", x = NULL, y = "CAPTURE") +
@@ -563,13 +530,16 @@ inland_cap_p <- inland_cap_regions %>%
     legend.position = "none",
     axis.text.x = element_blank(),
     plot.title = element_text(hjust = 0.5),
-    plot.margin = margin(c(0,0,0,0), unit = "mm")
+    plot.margin = margin(c(t=-0.5, r=-18, b=-1, l=-18), unit = "mm")
     )
+
+inland_cap_p <- ggdraw(inland_cap_p) +
+  draw_label("Inland capture", x = 0.5, y = 0.97, size = 9)
 
 inland_cap_p
 ```
 
-```{r inland_aqua, fig.height = 2, fig.width = 2}
+```{r inland_aqua, fig.height = 3, fig.width = 3}
 inland_aqua_regions <- regional_artis %>%
   filter(habitat == "inland" & method == "aquaculture") %>%
   group_by(exporter_region, importer_region) %>%
@@ -592,118 +562,136 @@ inland_aqua_p <- inland_aqua_regions %>%
                label = node)) +
     geom_sankey(flow.alpha = 0.6) +
     scale_fill_manual(values = region_colors) +
-    geom_sankey_label(size = 3, color = "white", fill = "gray40") +
+    geom_sankey_label(size = 4, color = "white", fill = "gray40") +
     theme_sankey(base_size = 18) +
-  labs(x = NULL) +
-    #labs(title = "Marine", x = NULL, y = "CAPTURE") +
+  labs(x = NULL, title = NULL) +
   theme(
     legend.position = "none",
     axis.text.x = element_blank(),
-    plot.title = element_text(hjust = 0.5),
-    plot.margin = margin(c(0,0,0,0), unit = "mm")
+    plot.title = element_text(hjust = 0.5, size = 9),
+    plot.margin = margin(c(t=-0.5, r=-18, b=-1, l=-18), unit = "mm")
     )
+
+inland_aqua_p <- ggdraw(inland_aqua_p) +
+  draw_label("Inland aquaculture", x = 0.5, y = 0.97, size = 9)
 
 inland_aqua_p
 ```
-```{r regional_sankey_by_source, fig.height = 2.5, fig.width = 3}
+```{r regional_sankey_by_source, fig.height = 8, fig.width = 10}
 ggarrange(marine_cap_p, inland_cap_p,
             marine_aqua_p, inland_aqua_p,
             ncol = 2, nrow = 2,
           labels = c("a", "b", "c", "d"))
-          # labels = c("Marine Capture", "Inland Capture",
-          #            "Marine Aquaculture", "Inland Aquaculture"))
 
 ggsave(file.path(outdir, "regional_sankey_by_source.png"))
 ```
 
-```{r si_top_exporters, fig.height = 5, fig.width = 4}
+```{r si_top_exporters, fig.height = 7, fig.width = 6}
 
-top_exporters_old <- read.csv(file.path(datadir, "top_exporters_old.csv")) %>%
+top_exporters_old <- read.csv(file.path(datadir, "si_top_exporters_old_fill.csv")) %>%
   mutate(habitat_method = factor(habitat_method, 
                                  levels = c("marine capture", "inland capture", 
                                             "marine aquaculture", "inland aquaculture", "unknown")))
-top_exporters_recent <- read.csv(file.path(datadir, "top_exporters_recent.csv")) %>%
+top_exporters_recent <- read.csv(file.path(datadir, "si_top_exporters_recent_fill.csv")) %>%
   mutate(habitat_method = factor(habitat_method, 
                                  levels = c("marine capture", "inland capture", 
                                             "marine aquaculture", "inland aquaculture", "unknown")))
 
 exporters_old_plot <- top_exporters_old %>%
-  ggplot(aes(x = live_weight_t/1000000, y = reorder(exporter_iso3c, ranking), fill = habitat_method)) +
+  pivot_longer(cols = c("domestic", "foreign"), names_to = "dom_source", values_to = "live_weight_t_2") %>%
+  ggplot(aes(x = live_weight_t_2/1000000, y = reorder(exporter_iso3c, ranking), fill = dom_source)) +
   geom_bar(stat = "identity") +
   scale_fill_manual(values = habitat_source_colors) +
   scale_y_reordered() +
-  labs(y = "", x = "Live weight (million t)") +
+  labs(y = "", x = "Live weight (million t)", fill = "Export Source") +
   xlim(c(0,6)) +
   facet_wrap(~habitat_method, ncol = 1, scales = "free_y") +
   theme_minimal() +
-  theme(legend.position = "none")
+  theme(
+    legend.position = "none",
+    axis.text = element_text(size = 8)
+  )
 
 exporters_recent_plot <- top_exporters_recent %>%
-  ggplot(aes(x = live_weight_t/1000000, y = reorder(exporter_iso3c, ranking), fill = habitat_method)) +
+  pivot_longer(cols = c("domestic", "foreign"), names_to = "dom_source", values_to = "live_weight_t_2") %>%
+  ggplot(aes(x = live_weight_t_2/1000000, y = reorder(exporter_iso3c, ranking), fill = dom_source)) +
   geom_bar(stat = "identity") +
   scale_fill_manual(values = habitat_source_colors) +
   scale_y_reordered() +
-  labs(y = "", x = "Live weight (million t)") +
+  labs(y = "", x = "Live weight (million t)", fill = "Export Source") +
   facet_wrap(~habitat_method, ncol = 1, scales = "free_y") +
   theme_minimal() +
-  theme(legend.position = "none")
+  theme(
+    legend.position = "none",
+    axis.text = element_text(size = 8)
+  )
 
 
 ggarrange(
   exporters_old_plot,
   exporters_recent_plot,
   ncol = 2,
-  labels = c("'96-'00", "'16-'20")
+  labels = c("'96-'00", "'16-'20"),
+  common.legend = TRUE
 )
 
 ggsave(file.path(outdir, "si_top_exporters.png"))
 ```
 
 
-```{r si_top_importers, fig.height = 5, fig.width = 4}
+```{r si_top_importers, fig.height = 7, fig.width = 6}
 
-top_importers_old <- read.csv(file.path(datadir, "top_importers_old.csv")) %>%
+top_importers_old <- read.csv(file.path(datadir, "si_top_importers_old_fill.csv")) %>%
   mutate(habitat_method = factor(habitat_method, 
                                  levels = c("marine capture", "inland capture", 
                                             "marine aquaculture", "inland aquaculture", "unknown")))
-top_importers_recent <- read.csv(file.path(datadir, "top_importers_recent.csv")) %>%
+top_importers_recent <- read.csv(file.path(datadir, "si_top_importers_recent_fill.csv")) %>%
   mutate(habitat_method = factor(habitat_method, 
                                  levels = c("marine capture", "inland capture", 
                                             "marine aquaculture", "inland aquaculture", "unknown")))
 
 importers_old_plot <- top_importers_old %>%
-  ggplot(aes(x = live_weight_t/1000000, y = reorder(importer_iso3c, ranking), fill = habitat_method)) +
+  pivot_longer(cols = c("domestic", "foreign"), names_to = "dom_source", values_to = "live_weight_t_2") %>%
+  ggplot(aes(x = live_weight_t_2/1000000, y = reorder(importer_iso3c, ranking), fill = dom_source)) +
   geom_bar(stat = "identity") +
   scale_fill_manual(values = habitat_source_colors) +
   scale_y_reordered() +
   xlim(c(0, 5.5)) +
-  labs(y = "", x = "Live weight (million t)") +
+  labs(y = "", x = "Live weight (million t)", fill = "Import Source") +
   facet_wrap(~habitat_method, ncol = 1, scales = "free_y") +
   theme_minimal() +
-  theme(legend.position = "none")
+  theme(
+    legend.position = "none",
+    axis.text = element_text(size = 8)
+  )
 
 importers_recent_plot <- top_importers_recent %>%
-  ggplot(aes(x = live_weight_t/1000000, y = reorder(importer_iso3c, ranking), fill = habitat_method)) +
+  pivot_longer(cols = c("domestic", "foreign"), names_to = "dom_source", values_to = "live_weight_t_2") %>%
+  ggplot(aes(x = live_weight_t_2/1000000, y = reorder(importer_iso3c, ranking), fill = dom_source)) +
   geom_bar(stat = "identity") +
   scale_fill_manual(values = habitat_source_colors) +
   scale_y_reordered() +
   xlim(c(0, 5.5)) +
-  labs(y = "", x = "Live weight (million t)") +
+  labs(y = "", x = "Live weight (million t)", fill = "Import Source") +
   facet_wrap(~habitat_method, ncol = 1, scales = "free_y") +
   theme_minimal() +
-  theme(legend.position = "none")
+  theme(
+    legend.position = "none",
+    axis.text = element_text(size = 8)
+  )
 
 ggarrange(
   importers_old_plot,
   importers_recent_plot,
   ncol = 2,
-  labels = c("'96-'00", "'16-'20")
+  labels = c("'96-'00", "'16-'20"),
+  common.legend = TRUE
 )
 
 ggsave(file.path(outdir, "si_top_importers.png"))
 ```
 
-```{r si_regional_changes, fig.height = 4, fig.width = 4}
+```{r si_regional_changes, fig.height = 6, fig.width = 6}
 
 # Largest regional export changes
 top_regional_export_change <- read.csv(file.path(datadir, "top_regional_export_change.csv")) %>%
@@ -749,7 +737,7 @@ ggarrange(
 ggsave(file.path(outdir, "regional_changes.png"))
 ```
 
-```{r si_export_decreases_increases, fig.height = 4, fig.width = 4.5}
+```{r si_export_decreases_increases, fig.height = 6, fig.width = 5}
 top_export_increases <- read.csv(file.path(datadir, "top_export_increases.csv")) %>%
   mutate(habitat_method = factor(habitat_method, 
                                  levels = c("marine capture", "inland capture", 
@@ -762,24 +750,30 @@ top_export_decreases <- read.csv(file.path(datadir, "top_export_decreases.csv"))
 exporter_increases_plot <- top_export_increases %>%
   ggplot(aes(x = change/1000000, y = reorder(exporter_iso3c, ranking), fill = habitat_method, color = habitat_method)) +
   geom_segment(aes(x=0, xend=change/1000000, y= reorder(exporter_iso3c, ranking), yend=exporter_iso3c)) +
-  geom_point(size=4) +
+  geom_point(size=2) +
   scale_color_manual(values = habitat_source_colors) +
   scale_y_reordered() +
   labs(y = "", x = "Live weight (million t)") +
   facet_wrap(~habitat_method, ncol = 1, scales = "free_y") +
   theme_minimal() +
-  theme(legend.position = "none")
+  theme(
+    legend.position = "none",
+    axis.text = element_text(size = 8)
+  )
 
 exporter_decreases_plot <- top_export_decreases %>%
   ggplot(aes(x = change/1000000, y = reorder(exporter_iso3c, ranking), fill = habitat_method, color = habitat_method)) +
   geom_segment(aes(x=0, xend=change/1000000, y= reorder(exporter_iso3c, ranking), yend=exporter_iso3c)) +
-  geom_point(size=4) +
+  geom_point(size=2) +
   scale_color_manual(values = habitat_source_colors) +
   scale_y_reordered() +
   labs(y = "", x = "Live weight (million t)") +
   facet_wrap(~habitat_method, ncol = 1, scales = "free_y") +
   theme_minimal() +
-  theme(legend.position = "none")
+  theme(
+    legend.position = "none",
+    axis.text = element_text(size = 8)
+  )
 
 ggarrange(
   exporter_decreases_plot, exporter_increases_plot, nrow = 1
@@ -788,7 +782,7 @@ ggarrange(
 ggsave(file.path(outdir, "si_export_changes.png"))
 ```
 
-```{r si_import_decreases_increases, fig.height = 4, fig.width = 4.5}
+```{r si_import_decreases_increases, fig.height = 6, fig.width = 5}
 top_import_increases <- read.csv(file.path(datadir, "top_import_increases.csv")) %>%
   mutate(habitat_method = factor(habitat_method, 
                                  levels = c("marine capture", "inland capture", 
@@ -801,24 +795,30 @@ top_import_decreases <- read.csv(file.path(datadir, "top_import_decreases.csv"))
 importer_increases_plot <- top_import_increases %>%
   ggplot(aes(x = change/1000000, y = reorder(importer_iso3c, ranking), fill = habitat_method, color = habitat_method)) +
   geom_segment(aes(x=0, xend=change/1000000, y= reorder(importer_iso3c, ranking), yend=importer_iso3c)) +
-  geom_point(size=4) +
+  geom_point(size=2) +
   scale_color_manual(values = habitat_source_colors) +
   scale_y_reordered() +
   labs(y = "", x = "Live weight (million t)") +
   facet_wrap(~habitat_method, ncol = 1, scales = "free_y") +
   theme_minimal() +
-  theme(legend.position = "none")
+  theme(
+    legend.position = "none",
+    axis.text = element_text(size = 8)
+  )
 
 importer_decreases_plot <- top_import_decreases %>%
   ggplot(aes(x = change/1000000, y = reorder(importer_iso3c, ranking), fill = habitat_method, color = habitat_method)) +
   geom_segment(aes(x=0, xend=change/1000000, y= reorder(importer_iso3c, ranking), yend=importer_iso3c)) +
-  geom_point(size=4) +
+  geom_point(size=2) +
   scale_color_manual(values = habitat_source_colors) +
   scale_y_reordered() +
   labs(y = "", x = "Live weight (million t)") +
   facet_wrap(~habitat_method, ncol = 1, scales = "free_y") +
   theme_minimal() +
-  theme(legend.position = "none")
+  theme(
+    legend.position = "none",
+    axis.text = element_text(size = 8)
+  )
 
 ggarrange(
   importer_decreases_plot, importer_increases_plot, nrow = 1
@@ -827,7 +827,7 @@ ggarrange(
 ggsave(file.path(outdir, "si_import_changes.png"))
 ```
 
-```{r regional_avg_annual_change, fig.height = 4, fig.width = 5}
+```{r regional_avg_annual_change, fig.height = 8, fig.width = 7}
 regional_avg_annual_change <- read.csv(file.path(datadir, "regional_avg_annual_change.csv"))
 
 regional_slopes_ranked <- regional_avg_annual_change %>%
@@ -838,14 +838,17 @@ regional_slopes_ranked <- regional_avg_annual_change %>%
   scale_color_manual(values = habitat_source_colors[c(1,4)]) +
   labs(y = "", x = "Ave. annual change in export (1000 t live weight)", color = "") +
   theme_minimal() +
-  theme(legend.position = "bottom")
+  theme(
+    legend.position = "bottom",
+    axis.text = element_text(size = 8)
+  )
 
 regional_slopes_ranked
 
 ggsave(file.path(outdir, "regional_avg_annual_change.png"))
 ```
 
-```{r ldc_net_exports_habitat_method}
+```{r ldc_net_exports_habitat_method, fig.height = 4, fig.width = 7}
 ldc_net_habitat_method_summary <- read.csv(file.path(datadir, "ldc_net_habitat_method_summary.csv")) %>%
   select(year, habitat_method, net_export)
 
@@ -866,7 +869,10 @@ ldc_net_exports_by_source_plot <- ldc_net_habitat_method_summary %>%
   scale_color_manual(values = habitat_source_colors) +
   labs(x = "", y = "Net export (million t)", color = "") +
   theme_minimal() +
-  theme(legend.position = "bottom")
+  theme(
+    legend.position = "bottom",
+    axis.text = element_text(size = 12)
+  )
 
 ldc_net_exports_by_source_plot
 
@@ -874,7 +880,7 @@ ggsave(file.path(outdir, "ldc_net_exports_by_source.png"))
 ```
 
 
-```{r custom_artis_ts}
+```{r custom_artis_ts, fig.height = 4, fig.width = 6}
 
 artis_ts <- read.csv(file.path(datadir, "artis_ts.csv"))
 custom_ts <- read.csv(file.path(datadir, "custom_ts.csv"))
@@ -885,9 +891,12 @@ ggplot() +
   scale_color_manual(
     values = c("Custom ARTIS Time series" = "black", "HS96" = "#741A32", "HS02" = "#B34232", "HS07" = "#D38F35", "HS12" = "red", "HS17" = "#114F59")
   ) +
-  labs(x = "Year", y = "Live Weight (tonnes)", color = "HS Version") +
+  labs(x = "Year", y = "Product Weight (tonnes)", color = "HS Version") +
   theme_bw() +
-  theme(legend.position = "bottom")
+  theme(
+    legend.position = "bottom",
+    axis.text = element_text(size = 10)
+  )
 
 ggsave(file.path(outdir, "custom_artis_ts.png"))
 ```
@@ -903,6 +912,7 @@ dom_source_ts_p <- dom_source_ts %>%
   labs(x = "", y = "Live weight\nmillion tonnes", color = "Source") +
   theme(
     legend.position = "bottom",
+    axis.text = element_text(size = 10),
     legend.box.margin=margin(t = -25)
   )
 
@@ -925,43 +935,22 @@ dom_source_by_habitat_method_p <- dom_source_by_habitat_method %>%
   facet_wrap(~dom_source) +
   theme(
     legend.position = "bottom",
+    axis.text = element_text(size = 10),
     panel.spacing = unit(5, "mm"),
     legend.box.margin=margin(t = -15)
   )
 
-dom_source_by_habitat_method_p
+ dom_source_by_habitat_method_p
 ```
 
-```{r dom_source_overview, fig.height = 5, fig.width = 7}
-ggarrange(
-  dom_source_ts_p,
-  dom_source_by_habitat_method_p,
-  nrow = 2,
-  labels = c("a", "b")
+```{r dom_source_overview, fig.height = 5, fig.width = 8}
+ ggarrange(
+   dom_source_ts_p,
+   dom_source_by_habitat_method_p,
+   nrow = 2,
+   labels = c("a", "b")
 )
 
 ggsave(file.path(outdir, "dom_source_2019_overview.png"))
-```
-
-```{r top_processing_countries_by_source, fig.height = 4, fig.width = 6}
-
-top_processing_by_source <- read.csv(file.path(datadir, "top_processing_by_source.csv"))
-
-top_processing_by_source %>%
-  filter(year == 2019) %>%
-  # Set factor levels
-  mutate(habitat_method = factor(habitat_method, levels = c("marine capture", "inland capture",
-                                                            "marine aquaculture", "inland aquaculture",
-                                                            "unknown" ))) %>%
-  ggplot(aes(x = live_weight_t / 1000000, y = reorder(exporter_iso3c, ranking), fill = habitat_method)) +
-  geom_bar(stat = "identity") +
-  scale_fill_manual(values = habitat_source_colors) +
-  scale_y_reordered() +
-  theme_bw() +
-  labs(x = "Live weight million tonnes", y = "", fill = "Source") +
-  facet_wrap(~habitat_method, scales = "free_y") +
-  theme(legend.position = "none")
-
-ggsave(file.path(outdir, "foreign_exports_2019_by_source.png"))
 ```
 

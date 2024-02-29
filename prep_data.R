@@ -33,7 +33,7 @@ con <- dbConnect(RPostgres::Postgres(),
 dbListTables(con)
 
 # ARTIS dataframe
-# artis_query <- 'SELECT year, source_country_iso3c, exporter_iso3c, importer_iso3c, hs6, hs_version, dom_source, sciname, habitat, method, product_weight_t, live_weight_t FROM all_estimates_snet'
+
 artis_query <- 'SELECT * FROM snet'
 artis <- dbGetQuery(con, artis_query) %>%
   select(-record_id) %>%
@@ -113,7 +113,6 @@ prod <- prod %>%
   summarise(production_t = sum(live_weight_t, na.rm = TRUE)) %>%
   ungroup()
 
-
 artis <- artis %>%
   filter(live_weight_t >= 0.1) %>%
   # Add importer and exporter region
@@ -121,22 +120,10 @@ artis <- artis %>%
               select("exporter_iso3c" = "iso3c", "exporter_region" = "owid_region"), by = c("exporter_iso3c")) %>%
   left_join(country_metadata %>% 
               select("importer_iso3c" = "iso3c", "importer_region" = "owid_region"), by = c("importer_iso3c")) %>%
-  # FIX IT: Determine if this should be deleted. Production of only species exports may not be relevant
-  left_join(prod, by = c("year", "exporter_iso3c" = "iso3c", 
-                         "sciname", "method", "habitat")) %>%
   ungroup()
 
 # Update artis data to lowest resolution by comparing code taxa_level and prod taxa_level
 artis <- artis %>%
-  # left_join(code_max_resolved_taxa,
-  #           by = c("hs_version", "hs6", "sciname")) %>%
-  # left_join(sciname_metadata, 
-  #           by = "sciname") %>%
-  # # Leave any missing sciname_hs_modified as original sciname
-  # mutate(sciname_hs_modified = case_when(
-  #   is.na(sciname_hs_modified) ~ sciname,
-  #   TRUE ~ sciname_hs_modified
-  # )) %>%
   rename(environment = habitat) %>%
   # Add habitat-method column
   mutate(habitat_method = paste(environment, method, sep =" ")) %>% 
@@ -368,53 +355,11 @@ supply <- supply %>%
   rename(supply_domestic = domestic_consumption_t,
          supply_foreign = foreign_consumption_t)
 
-# supply_min <- supply_min %>%
-#   # Remove observations where supply is 0
-#   filter(supply > 0) %>%
-#   mutate(habitat_method = paste(habitat, method, sep = " ")) %>%
-#   mutate(habitat_method = case_when(
-#     str_detect(habitat_method, "unknown") ~ "unknown", 
-#     TRUE ~ habitat_method
-#   )) %>%
-#   # Set factor levels
-#   mutate(habitat_method = factor(habitat_method, levels = c("marine capture", "inland capture",
-#                                                             "marine aquaculture", "inland aquaculture",
-#                                                             "unknown" ))) %>%
-#   rename(supply_domestic = domestic_consumption_t,
-#          supply_foreign = foreign_consumption_t)
-# 
-# supply_max <- supply_max %>%
-#   # Remove observations where supply is 0
-#   filter(supply > 0) %>%
-#   mutate(habitat_method = paste(habitat, method, sep = " ")) %>%
-#   mutate(habitat_method = case_when(
-#     str_detect(habitat_method, "unknown") ~ "unknown", 
-#     TRUE ~ habitat_method
-#   )) %>%
-#   # Set factor levels
-#   mutate(habitat_method = factor(habitat_method, levels = c("marine capture", "inland capture",
-#                                                             "marine aquaculture", "inland aquaculture",
-#                                                             "unknown" ))) %>%
-#   rename(supply_domestic = domestic_consumption_t,
-#          supply_foreign = foreign_consumption_t)
-
 supply <- supply %>%
   left_join(
     pop,
     by = c("iso3c", "year")
   )
-
-# supply_max <- supply_max %>%
-#   left_join(
-#     pop,
-#     by = c("iso3c", "year")
-#   )
-# 
-# supply_min <- supply_min %>%
-#   left_join(
-#     pop,
-#     by = c("iso3c", "year")
-#   )
 
 global_pop <- pop %>%
   filter(region != "Other nei") %>%
@@ -490,35 +435,9 @@ supply_year_summary <- supply %>%
                names_to = "supply_source", values_to = "supply_percent") %>%
   mutate(supply_source = gsub("supply_", "", supply_source))
 
-# supply_year_summary_max <- supply_max %>%
-#   filter(region != "Other nei") %>%
-#   group_by(year) %>%
-#   summarise(supply_domestic = 100 * sum(supply_domestic) / sum(supply),
-#             supply_foreign = 100 * sum(supply_foreign) / sum(supply)) %>%
-#   pivot_longer(cols = supply_domestic:supply_foreign, 
-#                names_to = "supply_source", values_to = "supply_percent") %>%
-#   mutate(supply_source = gsub("supply_", "", supply_source))
-# 
-# supply_year_summary_min <- supply_min %>%
-#   filter(region != "Other nei") %>%
-#   group_by(year) %>%
-#   summarise(supply_domestic = 100 * sum(supply_domestic) / sum(supply),
-#             supply_foreign = 100 * sum(supply_foreign) / sum(supply)) %>%
-#   pivot_longer(cols = supply_domestic:supply_foreign, 
-#                names_to = "supply_source", values_to = "supply_percent") %>%
-#   mutate(supply_source = gsub("supply_", "", supply_source))
+fig3c_data <- supply_year_summary
 
-fig3c_data <- supply_year_summary# %>%
-  # full_join(
-  #   supply_year_summary_max %>%
-  #     rename(supply_max_percent = supply_percent),
-  #   by = c("year", "supply_source")
-  # ) %>%
-  # full_join(
-  #   supply_year_summary_min %>%
-  #     rename(supply_min_percent = supply_percent),
-  #   by = c("year", "supply_source")
-  # )
+fig3c_data <- supply_year_summary
 
 write.csv(fig3c_data, file.path(outdir, "fig3c_data.csv"), row.names = FALSE)
 
@@ -600,7 +519,7 @@ top_exporters_old <- bilateral_habitat_method_summary %>%
   mutate(exporter_iso3c = reorder_within(exporter_iso3c, ranking, habitat_method))
 
 # Top exporters by habitat and production method fill by dom source (domestic/foreign)
-tmp_old <- bilateral_habitat_method_summary %>%
+si_top_exporters_old <- bilateral_habitat_method_summary %>%
   filter(year >= 1996 & year <= 2000 & habitat_method != "unknown") %>%
   group_by(exporter_iso3c, habitat_method, dom_source) %>%
   summarize(live_weight_t = sum(live_weight_t, na.rm = TRUE) / (2000 - 1996)) %>%
@@ -615,24 +534,9 @@ tmp_old <- bilateral_habitat_method_summary %>%
   ungroup() %>%
   mutate(exporter_iso3c = reorder_within(exporter_iso3c, ranking, habitat_method))
 
-write.csv(tmp_old, file.path(outdir, "si_top_exporters_old_fill.csv"), row.names = FALSE)
+write.csv(si_top_exporters_old, file.path(outdir, "si_top_exporters_old_fill.csv"), row.names = FALSE)
 
-tmp %>%
-  pivot_longer(cols = c("domestic", "foreign"), names_to = "dom_source", values_to = "live_weight_t_2") %>%
-  ggplot(aes(x = live_weight_t_2/1000000, y = reorder(exporter_iso3c, ranking), fill = dom_source)) +
-  geom_bar(stat = "identity") +
-  scale_fill_manual(values = habitat_source_colors) +
-  scale_y_reordered() +
-  labs(y = "", x = "Live weight (million t)", fill = "Export Source") +
-  xlim(c(0,6)) +
-  facet_wrap(~habitat_method, ncol = 1, scales = "free_y") +
-  theme_minimal() +
-  theme(
-    legend.position = "top",
-    axis.text = element_text(size = 8)
-  )
-
-tmp_new <- bilateral_habitat_method_summary %>%
+si_top_exporters_new <- bilateral_habitat_method_summary %>%
   filter(year >= 2016 & year <= 2020 & habitat_method != "unknown") %>%
   group_by(exporter_iso3c, habitat_method, dom_source) %>%
   summarize(live_weight_t = sum(live_weight_t, na.rm = TRUE) / (2000 - 1996)) %>%
@@ -647,7 +551,7 @@ tmp_new <- bilateral_habitat_method_summary %>%
   ungroup() %>%
   mutate(exporter_iso3c = reorder_within(exporter_iso3c, ranking, habitat_method))
 
-write.csv(tmp_new, file.path(outdir, "si_top_exporters_recent_fill.csv"), row.names = FALSE)
+write.csv(si_top_exporters_new, file.path(outdir, "si_top_exporters_recent_fill.csv"), row.names = FALSE)
 
 top_exporters_recent <- bilateral_habitat_method_summary %>%
   filter(year >= 2016 & year <= 2020 & habitat_method != "unknown") %>%
@@ -678,7 +582,7 @@ top_importers_old <- bilateral_habitat_method_summary %>%
   ungroup() %>%
   mutate(importer_iso3c = reorder_within(importer_iso3c, ranking, habitat_method))
 
-tmp_old <- bilateral_habitat_method_summary %>%
+si_top_importers_old <- bilateral_habitat_method_summary %>%
   filter(year >= 1996 & year <= 2000 & habitat_method != "unknown") %>%
   group_by(importer_iso3c, habitat_method, dom_source) %>%
   summarize(live_weight_t = sum(live_weight_t, na.rm = TRUE) / (2000 - 1996)) %>%
@@ -693,7 +597,7 @@ tmp_old <- bilateral_habitat_method_summary %>%
   ungroup() %>%
   mutate(importer_iso3c = reorder_within(importer_iso3c, ranking, habitat_method))
 
-write.csv(tmp_old, file.path(outdir, "si_top_importers_old_fill.csv"), row.names = FALSE)
+write.csv(si_top_importers_old, file.path(outdir, "si_top_importers_old_fill.csv"), row.names = FALSE)
 
 top_importers_recent <- bilateral_habitat_method_summary %>%
   filter(year >= 2016 & year <= 2020 & habitat_method != "unknown") %>%
@@ -707,7 +611,7 @@ top_importers_recent <- bilateral_habitat_method_summary %>%
   ungroup() %>%
   mutate(importer_iso3c = reorder_within(importer_iso3c, ranking, habitat_method))
 
-tmp_new <- bilateral_habitat_method_summary %>%
+si_top_importers_new <- bilateral_habitat_method_summary
   filter(year >= 2016 & year <= 2020 & habitat_method != "unknown") %>%
   group_by(importer_iso3c, habitat_method, dom_source) %>%
   summarize(live_weight_t = sum(live_weight_t, na.rm = TRUE) / (2000 - 1996)) %>%
@@ -722,7 +626,7 @@ tmp_new <- bilateral_habitat_method_summary %>%
   ungroup() %>%
   mutate(importer_iso3c = reorder_within(importer_iso3c, ranking, habitat_method))
 
-write.csv(tmp_new, file.path(outdir, "si_top_importers_recent_fill.csv"), row.names = FALSE)
+write.csv(si_top_importers_new, file.path(outdir, "si_top_importers_recent_fill.csv"), row.names = FALSE)
 
 write.csv(top_importers_old, file.path(outdir, "top_importers_old.csv"), row.names = FALSE)
 write.csv(top_importers_recent, file.path(outdir, "top_importers_recent.csv"), row.names = FALSE)
@@ -1086,12 +990,6 @@ true_species_reporters <- producer_species_level_percent %>%
   ))
 
 
-true_species_reporters %>%
-  ggplot(aes(x = year, y = n, color = producer_category)) +
-  geom_line() +
-  theme_bw() +
-  labs(x = "Year", y = "Number of Producers", color = "Producer Category")
-
 #-------------------------------------------------------------------------------
 # Diversity measures for countries that report at least 75% of their production as true species
 
@@ -1117,52 +1015,6 @@ true_species_trade <- true_species_producers %>%
 true_species_prod <- true_species_producers %>%
   left_join(prod,
             by = c("year", "iso3c"))
-#-------------------------------------------------------------------------------
-# # Comparing foreign export ranges between max, midpoint and min estimations
-# # Get Data
-# con <- dbConnect(RPostgres::Postgres(),
-#                  dbname=Sys.getenv("DB_NAME"),
-#                  host=Sys.getenv("DB_HOST"),
-#                  port=Sys.getenv("DB_PORT"),
-#                  user=Sys.getenv("DB_USERNAME"),
-#                  password=Sys.getenv("DB_PASSWORD"))
-# 
-# # Check that connection is established by checking which tables are present
-# dbListTables(con)
-# 
-# mid_exports <- dbGetQuery(con, 'SELECT SUM(live_weight_t) AS live_weight_t, dom_source, year FROM snet GROUP BY dom_source, year;')
-# min_exports <- dbGetQuery(con, 'SELECT SUM(live_weight_t) AS live_weight_t, dom_source, year FROM min_snet GROUP BY dom_source, year;')
-# max_exports <- dbGetQuery(con, 'SELECT SUM(live_weight_t) AS live_weight_t, dom_source, year FROM max_snet GROUP BY dom_source, year;')
-# 
-# dbDisconnect(con)
-# #-------------------------------------------------------------------------------
-# 
-# summary_dom_source <- mid_exports %>%
-#   mutate(estimate = "midpoint") %>%
-#   bind_rows(
-#     min_exports %>%
-#       mutate(estimate = "minimum")
-#   ) %>%
-#   bind_rows(
-#     max_exports %>%
-#       mutate(estimate = "maximum")
-#   ) %>%
-#   group_by(year, estimate) %>%
-#   mutate(total_exports = sum(live_weight_t, na.rm = TRUE)) %>%
-#   ungroup() %>%
-#   mutate(percent_export = 100 * live_weight_t / total_exports)
-# 
-# 
-# summary_dom_source %>%
-#   filter(dom_source == "foreign") %>%
-#   ggplot(aes(x = year, y = percent_export, color = estimate)) +
-#   geom_line(linewidth = 1) +
-#   scale_color_manual(values = c("#264653", "#e9c46a", "#e76f51")) +
-#   theme_bw() +
-#   labs(x = "Year", y = "Percent of total exports", color = "Estimate") +
-#   theme(
-#     legend.position = "bottom"
-#   )
 
 #-------------------------------------------------------------------------------
 # Results
