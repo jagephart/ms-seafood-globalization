@@ -33,6 +33,7 @@ con <- dbConnect(RPostgres::Postgres(),
 dbListTables(con)
 
 # ARTIS dataframe
+
 artis_query <- 'SELECT * FROM snet'
 artis <- dbGetQuery(con, artis_query) %>%
   select(-record_id) %>%
@@ -436,6 +437,8 @@ supply_year_summary <- supply %>%
 
 fig3c_data <- supply_year_summary
 
+fig3c_data <- supply_year_summary
+
 write.csv(fig3c_data, file.path(outdir, "fig3c_data.csv"), row.names = FALSE)
 
 # Figure 3d
@@ -608,7 +611,7 @@ top_importers_recent <- bilateral_habitat_method_summary %>%
   ungroup() %>%
   mutate(importer_iso3c = reorder_within(importer_iso3c, ranking, habitat_method))
 
-si_top_importers_new <- bilateral_habitat_method_summary %>%
+si_top_importers_new <- bilateral_habitat_method_summary
   filter(year >= 2016 & year <= 2020 & habitat_method != "unknown") %>%
   group_by(importer_iso3c, habitat_method, dom_source) %>%
   summarize(live_weight_t = sum(live_weight_t, na.rm = TRUE) / (2000 - 1996)) %>%

@@ -8,6 +8,9 @@
 # User-specific files
 .Ruserdata
 
+# Apple Directory special file
+.DS_Store
+
 # Example code in package build process
 *-Ex.R
 
@@ -53,4 +56,11 @@ qa/
 # Powerpoint
 *.pptx
 
+# Temporary data folder
+data/*
 
+# Manuscript text
+ms/*
+
+# Archive
+Archive/*
