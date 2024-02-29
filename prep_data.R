@@ -16,7 +16,7 @@ library(tidytext)
 #-------------------------------------------------------------------------------
 # Directory listing
 
-outdir <- "qa/outputs_20240221"
+outdir <- "outputs"
 
 #-------------------------------------------------------------------------------
 # Initial database pulls
@@ -54,12 +54,12 @@ artis_fm <- artis %>%
             product_weight_t = sum(product_weight_t, na.rm = TRUE))
 
 artis_nonfood <- artis %>% 
-  # Keep only FMFO and ornamental species
-  filter(hs6 %in% c("230120", "051191", "030110", "030111", "030119"))
+  # Keep only FMFO, and ornamental species
+  filter(hs6 %in% c("230120",  "030110", "030111", "030119"))
 
 artis <- artis %>% 
   # Remove FMFO and ornamental species
-  filter(!(hs6 %in% c("230120", "051191", "030110", "030111", "030119")))
+  filter(!(hs6 %in% c("230120",  "030110", "030111", "030119")))
 
 # Production dataframe
 prod <- dbGetQuery(con, "SELECT * FROM production") %>%
