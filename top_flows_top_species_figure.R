@@ -47,7 +47,7 @@ region6_palette <- c(
 
 artis_palette <- colorRampPalette(region6_palette)
 
-# FIX IT: Check on consumer NEI 
+
 consumption_scaled <- consumption %>%
   left_join(pop, by = c("year", "consumer_iso3c" = "iso3c")) %>%
   mutate(consumption_kg_percap = 1000*consumption_live_t/pop) %>%
@@ -68,6 +68,7 @@ consumption_scaled <- consumption %>%
   left_join(country_metadata %>%
               select(iso3c, "source_region" = "owid_region"), 
             by = c("source_country_iso3c" = "iso3c")) %>%
+  # FIX IT: Check on consumer NEI 
   filter(consumer_region != "Other nei", source_region != "Other nei") %>%
   # Add common names associated with sciname_hs_modified names
   left_join(sciname_metadata %>% 
