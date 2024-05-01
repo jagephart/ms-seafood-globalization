@@ -16,7 +16,7 @@ library(tidytext)
 
 ```{r load_data}
 # Directory
-datadir <- "qa/outputs_20240221"
+datadir <- "qa/manuscript_archive/manuscript_inputs"
 
 global_export_by_source <- read.csv(file.path(datadir, "global_export_by_source.csv"))
 all_degree_summary <- read.csv(file.path(datadir, "all_degree_summary.csv"))
@@ -248,7 +248,7 @@ global_supply <- read.csv(file.path(datadir, "global_supply.csv"))
 
 global_supply_per_cap <- read.csv(file.path(datadir, "global_supply_per_cap.csv"))
 
-regional_supply_per_cap <- read.csv(file.path(datadir, "fig3b_data.csv"))
+regional_supply_per_cap <- read.csv(file.path(datadir, "fig_4b_data.csv"))
 
 # Pull global supply numbers from 1996 and 2019
 global_supply_1996 <- global_supply_per_cap %>%
@@ -352,7 +352,7 @@ asia_farmed_year <- supply %>%
   filter(year == min(year)) %>%
   pull(year)
 
-foreign_consumption_region <- read.csv(file.path(datadir, "fig3d_data.csv"))
+foreign_consumption_region <- read.csv(file.path(datadir, "fig_4d_data.csv"))
 
 ```
 
