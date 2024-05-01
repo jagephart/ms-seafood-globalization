@@ -28,12 +28,14 @@ library(cowplot)
 library(scales)
 library(ggsankey)
 library(ggpubr)
+library(rnaturalearth)
+library(CoordinateCleaner)
 ```
 
 ```{r load_data}
 # Set directories
-datadir <- "qa/outputs_20240221"
-outdir <- "qa/outputs_20240221"
+datadir <- "qa/manuscript_archive/manuscript_inputs"
+outdir <- "qa/manuscript_archives/figures"
 ```
 
 ```{r color_palettes}
@@ -56,6 +58,15 @@ region_colors <- c(
   "#B34232", # burnt orange
   "#D38F35", #  orange
   "#D4B95f", # khaki
+  "#4FA2A2", # teal
+  "#114F59" # dark teal
+)
+
+region6_palette <- c(
+  "#741A32", # maroon
+  "#B34232", # burnt orange
+  "#D38F35", #  orange
+  "#D4B95F", # khaki
   "#4FA2A2", # teal
   "#114F59" # dark teal
 )
@@ -122,7 +133,7 @@ fig1c_out_degree <- fig1c_data %>%
     mutate(habitat_method = factor(habitat_method, 
                                  levels = c("marine capture", "inland capture", 
                                             "marine aquaculture", "inland aquaculture", "unknown"))) %>%
-  ggplot(aes(x = year, y = all_in_degree, color = habitat_method)) +
+  ggplot(aes(x = year, y = all_out_degree, color = habitat_method)) +
   geom_smooth(alpha = 0.2) +
   scale_color_manual(values = habitat_source_colors) +
   labs(y = "Average\nno. export partners", color = "Source") + 
@@ -212,18 +223,468 @@ ggarrange(fig1a,
           ncol = 1, nrow = 3, labels = c("a", ""))
 
 ggsave(file.path(outdir, "fig1.png"))
+# ggsave(file.path(outdir, "fig1.pdf"), device = "pdf", height = )
+```
+
+# Figure 2: Foreign consumption trends
+```{r foreign_consumption_setup}
+marine_cap_foreign_consumption <- read.csv(file.path(datadir, "marine_capture_foreign_consumption.csv"))
+
+marine_aqua_foreign_consumption <- read.csv(file.path(datadir, "marine_aquaculture_foreign_consumption.csv"))
+
+inland_cap_foreign_consumption <- read.csv(file.path(datadir, "inland_capture_foreign_consumption.csv"))
+
+inland_aqua_foreign_consumption <- read.csv(file.path(datadir, "inland_aquaculture_foreign_consumption.csv"))
+
+marine_cap_sciname <- read.csv(file.path(datadir, "marine_capture_top_scinames_foreign_consumption.csv"))
+
+marine_aqua_sciname <- read.csv(file.path(datadir, "marine_aquaculture_top_scinames_foreign_consumption.csv"))
+
+inland_cap_sciname <- read.csv(file.path(datadir, "inland_capture_top_scinames_foreign_consumption.csv"))
+
+inland_aqua_sciname <- read.csv(file.path(datadir, "inland_aquaculture_top_scinames_foreign_consumption.csv"))
+
+# Load world map data
+world <- ne_countries(scale = "medium", returnclass = "sf") %>%
+  filter(iso_a3 != "ATA")
+
+consumer_map_df <- marine_cap_foreign_consumption %>%
+  mutate(habitat_method = "Marine Capture") %>%
+  bind_rows(marine_aqua_foreign_consumption %>%
+              mutate(habitat_method = "Marine Aquaculture")) %>%
+  bind_rows(inland_cap_foreign_consumption %>%
+              mutate(habitat_method = "Inland Capture")) %>%
+  bind_rows(inland_aqua_foreign_consumption %>%
+              mutate(habitat_method = "Inland Aquaculture")) %>%
+  group_by(consumer_iso3c, habitat_method) %>%
+  summarize(consumption_live_t = sum(consumption_live_t, na.rm = TRUE)) %>%
+  ungroup() %>%
+  left_join(
+    world,
+    by = c("consumer_iso3c"="iso_a3")
+  )
+
+country_centroids <- countryref %>%
+  filter(str_count(as.character(adm1_code))==3) %>%
+  group_by(iso3) %>%
+  summarise(centroid.lon = mean(centroid.lon),
+            centroid.lat = mean(centroid.lat)) %>%
+  ungroup() %>%
+  mutate(
+    centroid.lon = case_when(
+      iso3 == "KIR" ~ 172.9717,
+      TRUE ~ centroid.lon
+    ),
+    centroid.lat = case_when(
+      iso3 == "KIR" ~ 1.4518,
+      TRUE ~ centroid.lat
+    )
+  )
+
+trade_map <- ggplot(world) +
+  geom_sf(size = 0.1, color = "white", fill = "grey", alpha = 0.5)
+
+# Maximum and minimum limits for maps and stacked bar charts
+consumption_live_magnitude <- 1e6
+
+map_min <- 0
+map_max <- max(consumer_map_df$consumption_live_t, na.rm = TRUE) / consumption_live_magnitude
+arrows_min <- 0
+arrows_max <- max(
+  c(marine_cap_foreign_consumption$consumption_live_t,
+    marine_aqua_foreign_consumption$consumption_live_t,
+    inland_cap_foreign_consumption$consumption_live_t,
+    inland_aqua_foreign_consumption$consumption_live_t),
+  na.rm = TRUE
+) / consumption_live_magnitude
+
+sciname_df <- marine_cap_sciname %>%
+  mutate(habitat_method = "Marine Capture") %>%
+  bind_rows(marine_aqua_sciname %>%
+              mutate(habitat_method = "Marine Aquaculture")) %>%
+  bind_rows(inland_cap_sciname %>%
+              mutate(habitat_method = "Inland Capture")) %>%
+  bind_rows(inland_aqua_sciname %>%
+              mutate(habitat_method = "Inland Aquaculture")) %>%
+  group_by(common_name, flow, habitat_method) %>%
+  summarize(consumption_live_t = sum(consumption_live_t, na.rm = TRUE)) %>%
+  ungroup()
+
+stacked_bar_min <- 0
+stacked_bar_max <- max(
+  sciname_df$consumption_live_t,
+  na.rm = TRUE
+) / consumption_live_magnitude
+
+```
+
+```{r marine_cap_foreign_consumption}
+
+marine_cap_map <- trade_map +
+  geom_sf(data = consumer_map_df %>%
+            filter(habitat_method == "Marine Capture"), 
+          aes(fill = consumption_live_t/consumption_live_magnitude, geometry = geometry), color = "white", size = 0.1) +
+  scale_fill_gradient(low = "#86ADA7", high = "#0F2D59", limits=c(map_min, map_max)) +
+  theme_bw() + 
+  theme(
+    legend.position = "none",
+    axis.title = element_blank(),
+    axis.ticks = element_blank(),
+    axis.text = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.background = element_blank(),
+    panel.spacing = unit(2, "mm"),
+    panel.border = element_blank(),
+    plot.background = element_blank(),
+    plot.margin = unit(c(0,0,-5,0),"mm")
+  )
+
+marine_cap_arrows <- marine_cap_foreign_consumption %>%
+  slice_max(n = 10, order_by = consumption_live_t) %>%
+  # Join with lat/long data for centroids
+  left_join(country_centroids, by = c("source_country_iso3c" = "iso3")) %>%
+  left_join(country_centroids, by = c("consumer_iso3c" = "iso3")) %>%
+  mutate(centroid.lat.x = 1.05 * centroid.lat.x,
+         centroid.lat.y = 0.95 * centroid.lat.y)
+
+marine_cap_map <- marine_cap_map +
+  geom_curve(data = marine_cap_arrows, 
+                 aes(x = centroid.lon.x, y = centroid.lat.x, 
+                     xend = centroid.lon.y, yend = centroid.lat.y,
+                     color = consumption_live_t/consumption_live_magnitude),
+                 size = 1.2,
+                 alpha = 0.75,
+                 curvature = -0.35, arrow = arrow(length = unit(3, "mm"), angle = 20)) +
+      scale_colour_gradient(low = "#F7AF75", high = "#E24027", limits = c(arrows_min, arrows_max))
+
+marine_cap_map
+
+marine_cap_stacked_bar <- marine_cap_sciname %>%
+  mutate(common_name = case_when(
+    common_name == "alaska pollock(=walleye poll.)" ~ "alaska pollock",
+    TRUE ~ common_name
+  )) %>%
+  mutate(common_name = gsub(" ", "\n", common_name)) %>%
+  mutate(common_name = reorder(common_name, desc(total))) %>%
+  ggplot(aes(x = consumption_live_t/consumption_live_magnitude, y = flow, fill = region)) +
+  geom_bar(stat = "identity", position = "stack", width = 0.8) +
+  scale_fill_manual(values = region6_palette) +
+  labs(x = "", y = "") +
+  lims(x = c(stacked_bar_min, stacked_bar_max)) +
+  facet_grid(vars(common_name), switch = "y") +
+  theme_minimal() +
+  theme(
+    strip.text.y.left = element_text(size = 8),
+    strip.placement = "outside",
+    legend.position = "none",
+    panel.spacing = unit(2, "mm"),
+    axis.ticks.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_text(size = 8),
+    plot.margin = unit(c(0, 5, -5, -10), "mm")
+  )
+
+marine_cap_stacked_bar
+
+marine_cap <- ggarrange(
+  marine_cap_map, marine_cap_stacked_bar,
+  nrow = 1, ncol = 2,
+  widths = c(1.5, 1)
+)
+
+marine_cap <- annotate_figure(
+  marine_cap, top = text_grob("Marine Capture")#, vjust = 1),
+)
+
+marine_cap
+
+# ggsave(file.path(outdir, "marine_cap_map_bar.png"), width = 6, height = 3, dpi = 300, units = "in", device = "png")
+```
+
+```{r marine_aqua_foreign_consumption}
+marine_aqua_map <- trade_map +
+  geom_sf(data = consumer_map_df %>%
+            filter(habitat_method == "Marine Aquaculture"), 
+          aes(fill = consumption_live_t/consumption_live_magnitude, geometry = geometry), color = "white", size = 0.1) +
+  scale_fill_gradient(low = "#86ADA7", high = "#0F2D59", limits = c(map_min, map_max)) +
+  theme_bw() + 
+  theme(
+    legend.position = "none",
+    axis.title = element_blank(),
+    axis.ticks = element_blank(),
+    axis.text = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.background = element_blank(),
+    panel.spacing = unit(2, "mm"),
+    panel.border = element_blank(),
+    plot.background = element_blank(),
+    plot.margin = unit(c(0,0,-5,0),"mm")
+  )
+
+marine_aqua_arrows <- marine_aqua_foreign_consumption %>%
+  slice_max(n = 10, order_by = consumption_live_t) %>%
+  # Join with lat/long data for centroids
+  left_join(country_centroids, by = c("source_country_iso3c" = "iso3")) %>%
+  left_join(country_centroids, by = c("consumer_iso3c" = "iso3")) %>%
+  mutate(centroid.lat.x = 1.05 * centroid.lat.x,
+         centroid.lat.y = 0.95 * centroid.lat.y)
+
+marine_aqua_map <- marine_aqua_map +
+  geom_curve(data = marine_aqua_arrows, 
+                 aes(x = centroid.lon.x, y = centroid.lat.x, 
+                     xend = centroid.lon.y, yend = centroid.lat.y,
+                     color = consumption_live_t/consumption_live_magnitude),
+                 size = 1.2,
+                 alpha = 0.75,
+                 curvature = -0.35, arrow = arrow(length = unit(3, "mm"), angle = 20)) +
+      scale_colour_gradient(low = "#F7AF75", high = "#E24027", limits = c(arrows_min, arrows_max))
+
+marine_aqua_map
+
+marine_aqua_stacked_bar <- marine_aqua_sciname %>%
+  mutate(common_name = gsub(" ", "\n", common_name))%>%
+  mutate(common_name = reorder(common_name, desc(total))) %>%
+  ggplot(aes(x = consumption_live_t/consumption_live_magnitude, y = flow, fill = region)) +
+  geom_bar(stat = "identity", position = "stack", width = 0.8) +
+  scale_fill_manual(values = region6_palette) +
+  labs(x = "", y = "") +
+  lims(x = c(stacked_bar_min, stacked_bar_max)) +
+  facet_grid(vars(common_name), switch = "y") +
+  theme_minimal() +
+  theme(
+    strip.text.y.left = element_text(size = 8),
+    strip.placement = "right",
+    legend.position = "none",
+    panel.spacing = unit(2, "mm"),
+    axis.ticks.x = element_blank(),
+    axis.text.x = element_blank(),
+    plot.margin = unit(c(0, 5, -5, -10), "mm")
+  )
+
+marine_aqua_stacked_bar
+
+marine_aqua <- ggarrange(
+  marine_aqua_map, marine_aqua_stacked_bar,
+  nrow = 1, ncol = 2,
+  widths = c(1.5, 1)
+)
+
+marine_aqua <- annotate_figure(
+  marine_aqua, top = text_grob("Marine Aquaculture")#, vjust = 1),
+)
+
+marine_aqua
+
+# ggsave(file.path(outdir, "test.png"), width = 6, height = 3, dpi = 300, units = "in", device = "png")
+```
+
+```{r inland_cap_foreign_consumption}
+
+inland_cap_map <- trade_map +
+  geom_sf(data = consumer_map_df %>%
+            filter(habitat_method == "Inland Capture"), 
+          aes(fill = consumption_live_t/consumption_live_magnitude, geometry = geometry), color = "white", size = 0.1) +
+  scale_fill_gradient(low = "#86ADA7", high = "#0F2D59", limits = c(map_min, map_max)) +
+  theme_bw() + 
+  theme(
+    legend.position = "none",
+    axis.title = element_blank(),
+    axis.ticks = element_blank(),
+    axis.text = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.background = element_blank(),
+    panel.spacing = unit(2, "mm"),
+    panel.border = element_blank(),
+    plot.background = element_blank(),
+    plot.margin = unit(c(0,0,-5,-10),"mm")
+  )
+
+inland_cap_arrows <- inland_cap_foreign_consumption %>%
+  slice_max(n = 10, order_by = consumption_live_t) %>%
+  # Join with lat/long data for centroids
+  left_join(country_centroids, by = c("source_country_iso3c" = "iso3")) %>%
+  left_join(country_centroids, by = c("consumer_iso3c" = "iso3")) %>%
+  mutate(centroid.lat.x = 1.05 * centroid.lat.x,
+         centroid.lat.y = 0.95 * centroid.lat.y)
+
+inland_cap_map <- inland_cap_map +
+  geom_curve(data = inland_cap_arrows, 
+                 aes(x = centroid.lon.x, y = centroid.lat.x, 
+                     xend = centroid.lon.y, yend = centroid.lat.y,
+                     color = consumption_live_t/consumption_live_magnitude),
+                 size = 1.2,
+                 alpha = 0.75,
+                 curvature = -0.35, arrow = arrow(length = unit(3, "mm"), angle = 20)) +
+      scale_colour_gradient(low = "#F7AF75", high = "#E24027", limits = c(arrows_min, arrows_max))
+
+inland_cap_map
+
+inland_cap_stacked_bar <- inland_cap_sciname %>%
+  mutate(common_name = gsub(" nei", "", common_name)) %>%
+  mutate(common_name = case_when(
+    common_name == "ray-finned fishes" ~ "\nray-finned fishes",
+    common_name == "freshwater siluroids" ~ "\nfreshwater siluroids",
+    common_name == "nile perch" ~ "\nnile perch",
+    TRUE ~ common_name
+  )) %>%
+  mutate(common_name = gsub(" ", "\n", common_name)) %>%
+  mutate(common_name = reorder(common_name, desc(total))) %>%
+  ggplot(aes(x = consumption_live_t/consumption_live_magnitude, y = flow, fill = region)) +
+  geom_bar(stat = "identity", position = "stack", width = 0.8) +
+  scale_fill_manual(values = region6_palette) +
+  labs(x = "", y = "") +
+  lims(x = c(stacked_bar_min, stacked_bar_max)) +
+  facet_grid(vars(common_name), switch = "y") +
+  theme_minimal() +
+  theme(
+    strip.text.y.left = element_text(size = 8),
+    strip.placement = "outside",
+    legend.position = "none",
+    axis.ticks.x = element_blank(),
+    axis.text.x = element_blank(),
+    panel.spacing = unit(2, "mm"),
+    plot.margin = margin(r = 5, l=-10, b=-5, unit="mm")# unit(c(, 5, 0, -10), "mm")
+  )
+
+inland_cap_stacked_bar
+
+inland_cap <- ggarrange(
+  inland_cap_map, inland_cap_stacked_bar,
+  nrow = 1, ncol = 2,
+  widths = c(1.5, 1)
+)
+
+inland_cap <- annotate_figure(
+  inland_cap, top = text_grob("Inland Capture")#, vjust = 1),
+)
+
+inland_cap
+
+# ggsave(file.path(outdir, "test.png"), width = 6, height = 3, dpi = 300, units = "in", device = "png")
+```
+
+```{r inland_aqua_foreign_consumption}
+inland_aqua_map <- trade_map +
+  geom_sf(data = consumer_map_df %>%
+            filter(habitat_method == "Inland Aquaculture"), 
+          aes(fill = consumption_live_t/consumption_live_magnitude, geometry = geometry), color = "white", size = 0.1) +
+  scale_fill_gradient(low = "#86ADA7", high = "#0F2D59", limits = c(map_min, map_max)) +
+  theme_bw() + 
+  theme(
+    legend.position = c(0.5, 0.05),
+    legend.direction = "horizontal",
+    legend.box = "vertical",
+    legend.spacing.y = unit(1, "mm"),
+    legend.spacing.x = unit(5, "mm"),
+    legend.title = element_text(size = 10),
+    legend.box.margin = margin(b = 3, t = 10, r = 20, unit = "mm"),
+    legend.margin = margin(t = 0, unit = "mm"),
+    axis.title = element_blank(),
+    axis.ticks = element_blank(),
+    axis.text = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.background = element_blank(),
+    panel.spacing = unit(2, "mm"),
+    panel.border = element_blank(),
+    plot.background = element_blank(),
+    legend.key.height = unit(2.5, "mm"),
+    plot.margin = margin(t=-10, unit="mm")
+  )
+
+inland_aqua_arrows <- inland_aqua_foreign_consumption %>%
+  slice_max(n = 10, order_by = consumption_live_t) %>%
+  # Join with lat/long data for centroids
+  left_join(country_centroids, by = c("source_country_iso3c" = "iso3")) %>%
+  left_join(country_centroids, by = c("consumer_iso3c" = "iso3")) %>%
+  mutate(centroid.lat.x = 1.05 * centroid.lat.x,
+         centroid.lat.y = 0.95 * centroid.lat.y)
+
+inland_aqua_map <- inland_aqua_map +
+  geom_curve(data = inland_aqua_arrows, 
+                 aes(x = centroid.lon.x, y = centroid.lat.x, 
+                     xend = centroid.lon.y, yend = centroid.lat.y,
+                     color = consumption_live_t/consumption_live_magnitude),
+                 size = 1.2,
+                 alpha = 0.75,
+                 curvature = -0.35, arrow = arrow(length = unit(3, "mm"), angle = 20)) +
+      scale_colour_gradient(low = "#F7AF75", high = "#E24027", limits = c(arrows_min, arrows_max)) +
+  labs(fill = "Consumption (mil. t.)",
+       colour = "Export (mil. t.)           ")
+
+inland_aqua_map
+
+inland_aqua_stacked_bar <- inland_aqua_sciname %>%
+  mutate(common_name = gsub(" nei", "", common_name)) %>%
+  mutate(common_name = case_when(
+    common_name == "ray-finned fishes" ~ "\nray-finned fishes",
+    common_name == "striped catfish" ~ "\nstriped catfish",
+    common_name == "freshwater siluroids" ~ "\nfreshwater siluroids",
+    common_name == "nile tilapia" ~ "\nnile tilapia",
+    TRUE ~ common_name
+  )) %>%
+  mutate(common_name = gsub(" ", "\n", common_name)) %>%
+  mutate(common_name = reorder(common_name, desc(total))) %>%
+  mutate(region = case_when(
+    region == "North America" ~ "N. America",
+    region == "South America" ~ "S. America",
+    TRUE ~ region
+  )) %>%
+  ggplot(aes(x = consumption_live_t/consumption_live_magnitude, y = flow, fill = region)) +
+  geom_bar(stat = "identity", position = "stack", width = 0.8) +
+  scale_fill_manual(values = region6_palette) +
+  labs(x = "", y = "", fill = "") +
+  lims(x = c(stacked_bar_min, stacked_bar_max)) +
+  facet_grid(vars(common_name), switch = "y") +
+  theme_minimal() +
+  theme(
+    strip.placement = "outside",
+    strip.text.y.left = element_text(size = 8),
+    legend.position = "bottom",
+    legend.box = "horizontal",
+    legend.text = element_text(size = 8),
+    legend.key.size = unit(3, "mm"),
+    legend.box.margin = margin(l = -25, unit = "mm"),
+    legend.margin = margin(t = -7, b = 0, unit = "mm"),
+    panel.spacing = unit(2, "mm"),
+    plot.margin = unit(c(0, 5, 0, -10), "mm")
+  )
+
+inland_aqua_stacked_bar
+
+inland_aqua <- ggarrange(
+  inland_aqua_map, inland_aqua_stacked_bar,
+  nrow = 1, ncol = 2,
+  widths = c(1.5, 1))
+
+inland_aqua <- annotate_figure(
+  inland_aqua, top = text_grob("Inland Aquaculture")
+)
+
+inland_aqua
+
+ggsave(file.path(outdir, "test.png"), width = 6, height = 3, dpi = 300, units = "in", device = "png")
+```
+
+```{r foreign_consumption, fig.height = 15, fig.width = 8}
+ggarrange(marine_cap,
+          marine_aqua,
+          inland_cap,
+          inland_aqua,
+          ncol = 1,
+          heights = c(1, 1, 1, 1.1),
+          common.legend = TRUE)
+
+ggsave(file.path(outdir, "fig2.png"), width = 9, height = 13, dpi = 500, unit = "in", device = "png")
 ```
 
 
-# Figure 2: Trade patterns
+# Figure 3: Trade patterns
 
-```{r fig2_data}
-artis_region_method <- read.csv(file.path(datadir, "artis_region_method.csv"))
-artis_region <- read.csv(file.path(datadir, "artis_region.csv"))
+```{r fig3_data}
+artis_region_method <- read.csv(file.path(datadir, "fig_3_data.csv"))
 ```
 
-```{r fig2a}
-
+```{r fig3a}
 region_net_import <- artis_region_method %>% 
   group_by(year, importer_region) %>%
   summarise(import_live_weight_t = sum(live_weight_t, na.rm = TRUE)) %>%
@@ -234,7 +695,7 @@ region_net_import <- artis_region_method %>%
               rename(region = exporter_region), by = c("year", "region")) %>%
   mutate(net_import = import_live_weight_t-export_live_weight_t)
   
-fig2a <- ggplot() +
+fig3a <- ggplot() +
   geom_area(data = artis_region_method %>% 
                 mutate(habitat_method = factor(habitat_method, 
                                  levels = c("marine capture", "inland capture", 
@@ -272,17 +733,17 @@ fig2a <- ggplot() +
         plot.margin = unit(c(t=0, r=1, b=0, l=0.5), "cm")) +
   facet_wrap(~region, nrow = 1)
 
-fig2a <- ggdraw(fig2a) +
+fig3a <- ggdraw(fig3a) +
   draw_label("Net import", x = 0.97, y = 0.55, angle = 270, size = 9) +
   draw_label("Net export", x = 0.97, y = 0.3, angle = 270, size = 9)
 
-fig2a
+fig3a
 ```
 
 
-```{r fig2b}
+```{r fig3b}
 # Matrix of plots showcasing inter-regional trade trends
-fig2b <- artis_region_method %>% 
+fig3b <- artis_region_method %>% 
     mutate(habitat_method = factor(habitat_method, 
                                  levels = c("marine capture", "inland capture", 
                                             "marine aquaculture", "inland aquaculture", "unknown"))) %>%
@@ -300,31 +761,36 @@ fig2b <- artis_region_method %>%
   facet_grid(rows = vars(exporter_region), cols = vars(importer_region), 
              labeller = label_wrap_gen(width = 5), scales = "free", switch = "y")
 
-fig2b <- ggdraw(fig2b) +
+fig3b <- ggdraw(fig3b) +
   draw_label("Exporting region", x = 0.02, y = 0.5, angle = 90, size = 10) +
   draw_label("Importing region", x = 0.5, y = 0.965, size = 10) +
   draw_label("Trade (million t, live weight)", x = 0.96, y = 0.5, angle = 270, size = 10)
 
-fig2b
+fig3b
 ```
 
-```{r fig2, fig.height=8, fig.width=6.5}
-# Overall Figure 2
-ggarrange(ggarrange(fig2a, NULL,
+```{r fig3, fig.height=8, fig.width=6.5}
+# Overall Figure 3
+ggarrange(ggarrange(fig3a, NULL,
                     ncol = 2, nrow = 1,
                     widths = c(4.5, 0.2), labels = c("a", "")), 
-          fig2b, labels = c("", "b"),
+          fig3b, labels = c("", "b"),
           ncol = 1, heights = c(3, 4))
 
-ggsave(file.path(outdir, "fig2.png"))
+ggsave(file.path(outdir, "fig3.png"))
 ```
 
-# Figure 3
-```{r fig3a}
-# Global per capita supply
-fig3a_data <- read.csv(file.path(datadir, "fig3a_data.csv"))
 
-fig3a <- fig3a_data %>%
+# Figure 3: Foreign consumption maps and top species traded
+
+
+
+# Figure 4
+```{r fig4a}
+# Global per capita supply
+fig4a_data <- read.csv(file.path(datadir, "fig_4a_data.csv"))
+
+fig4a <- fig4a_data %>%
   # Set factor levels
   mutate(habitat_method = factor(habitat_method, levels = c("marine capture", "inland capture",
                                                             "marine aquaculture", "inland aquaculture",
@@ -338,14 +804,14 @@ fig3a <- fig3a_data %>%
   theme(legend.position = "bottom",
         axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) 
 
-fig3a
+fig4a
 ```
 
-```{r fig3b}
+```{r fig4b}
 # Per capita supply by region
-fig3b_data <- read.csv(file.path(datadir, "fig3b_data.csv"))
+fig4b_data <- read.csv(file.path(datadir, "fig_4b_data.csv"))
 
-fig3b <- fig3b_data %>%
+fig4b <- fig4b_data %>%
    # Set factor levels
   mutate(habitat_method = factor(habitat_method, levels = c("marine capture", "inland capture",
                                                             "marine aquaculture", "inland aquaculture",
@@ -361,15 +827,15 @@ fig3b <- fig3b_data %>%
         strip.background = element_blank()) +
   facet_wrap(~region)
 
-fig3b
+fig4b
 ```
 
-```{r fig3c}
+```{r fig4c}
 # Global percent of supply by domestic / foreign exports
-fig3c_data <- read.csv(file.path(datadir, "fig3c_data.csv"))
+fig4c_data <- read.csv(file.path(datadir, "fig_4c_data.csv"))
 
-fig3c <- ggplot() +
-  geom_line(data = fig3c_data, aes(x = year, y = supply_percent, color = supply_source)) +
+fig4c <- ggplot() +
+  geom_line(data = fig4c_data, aes(x = year, y = supply_percent, color = supply_source)) +
   scale_color_manual(values = c("#F37542", "#0F2D59")) +
   labs(x = "", y = "Percent of supply", color = "Origin") +
   lims(y = c(0,100)) +
@@ -377,13 +843,13 @@ fig3c <- ggplot() +
   theme(legend.position = "bottom",
         axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
-fig3c
+fig4c
 ```
 
-```{r fig3d}
-fig3d_data <- read.csv(file.path(datadir, "fig3d_data.csv"))
+```{r fig4d}
+fig4d_data <- read.csv(file.path(datadir, "fig_4d_data.csv"))
 
-fig3d <- fig3d_data %>%
+fig4d <- fig4d_data %>%
   ggplot(aes(x = year, y = supply_percent, color = supply_source)) +
   geom_line() +
   scale_color_manual(values = c("#F37542", "#0F2D59")) +
@@ -395,30 +861,30 @@ fig3d <- fig3d_data %>%
         axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
         strip.background = element_blank())
 
-fig3d
+fig4d
 ```
 
-```{r fig3, fig.height = 6, fig.width = 7}
-fig3 <- ggarrange(
-  ggarrange(fig3a, fig3b, 
+```{r fig4, fig.height = 6, fig.width = 7}
+fig4 <- ggarrange(
+  ggarrange(fig4a, fig4b, 
             common.legend = TRUE, nrow = 1, widths = c(1, 2),
             labels = c("a", "b")),
-  ggarrange(fig3c, fig3d,
+  ggarrange(fig4c, fig4d,
             common.legend = TRUE, nrow = 1, widths = c(1, 2),
             labels = c("c", "d")),
   nrow = 2
 )
 
-fig3
+fig4
 
-ggsave(file.path(outdir, "fig3.png"))
+ggsave(file.path(outdir, "fig4.png"))
 ```
 
 
 # Supplementary Figures
 
 ```{r regional_sankey, fig.height = 3, fig.width = 3}
-regional_artis <- read.csv(file.path(datadir, "regional_artis_by_source.csv"))
+regional_artis <- read.csv(file.path(datadir, "si_fig_1_data.csv"))
 
 marine_cap_regions <- regional_artis %>%
   filter(habitat == "marine" & method == "capture") %>%
@@ -583,16 +1049,16 @@ ggarrange(marine_cap_p, inland_cap_p,
             ncol = 2, nrow = 2,
           labels = c("a", "b", "c", "d"))
 
-ggsave(file.path(outdir, "regional_sankey_by_source.png"))
+ggsave(file.path(outdir, "si_fig1.png"))
 ```
 
-```{r si_top_exporters, fig.height = 7, fig.width = 6}
+```{r si_fig_2_top_exporters, fig.height = 7, fig.width = 6}
 
-top_exporters_old <- read.csv(file.path(datadir, "si_top_exporters_old_fill.csv")) %>%
+top_exporters_old <- read.csv(file.path(datadir, "si_fig_2_exporters_old.csv")) %>%
   mutate(habitat_method = factor(habitat_method, 
                                  levels = c("marine capture", "inland capture", 
                                             "marine aquaculture", "inland aquaculture", "unknown")))
-top_exporters_recent <- read.csv(file.path(datadir, "si_top_exporters_recent_fill.csv")) %>%
+top_exporters_recent <- read.csv(file.path(datadir, "si_fig_2_exporters_recent.csv")) %>%
   mutate(habitat_method = factor(habitat_method, 
                                  levels = c("marine capture", "inland capture", 
                                             "marine aquaculture", "inland aquaculture", "unknown")))
@@ -635,17 +1101,17 @@ ggarrange(
   common.legend = TRUE
 )
 
-ggsave(file.path(outdir, "si_top_exporters.png"))
+ggsave(file.path(outdir, "si_fig2.png"))
 ```
 
 
-```{r si_top_importers, fig.height = 7, fig.width = 6}
+```{r si_fig3_top_importers, fig.height = 7, fig.width = 6}
 
-top_importers_old <- read.csv(file.path(datadir, "si_top_importers_old_fill.csv")) %>%
+top_importers_old <- read.csv(file.path(datadir, "si_fig_3_importers_old.csv")) %>%
   mutate(habitat_method = factor(habitat_method, 
                                  levels = c("marine capture", "inland capture", 
                                             "marine aquaculture", "inland aquaculture", "unknown")))
-top_importers_recent <- read.csv(file.path(datadir, "si_top_importers_recent_fill.csv")) %>%
+top_importers_recent <- read.csv(file.path(datadir, "si_fig_3_importers_recent.csv")) %>%
   mutate(habitat_method = factor(habitat_method, 
                                  levels = c("marine capture", "inland capture", 
                                             "marine aquaculture", "inland aquaculture", "unknown")))
@@ -688,147 +1154,11 @@ ggarrange(
   common.legend = TRUE
 )
 
-ggsave(file.path(outdir, "si_top_importers.png"))
+ggsave(file.path(outdir, "si_fig3.png"))
 ```
 
-```{r si_regional_changes, fig.height = 6, fig.width = 6}
-
-# Largest regional export changes
-top_regional_export_change <- read.csv(file.path(datadir, "top_regional_export_change.csv")) %>%
-  mutate(habitat_method = factor(habitat_method, 
-                                 levels = c("marine capture", "inland capture", 
-                                            "marine aquaculture", "inland aquaculture", "unknown")))
-
-regional_export_change_plot <- top_regional_export_change %>%
-  ggplot(aes(x = change/1000000, y = reorder(exporter_region, ranking), fill = habitat_method, color = habitat_method)) +
-  geom_segment(aes(x=0, xend=change/1000000, y=reorder(exporter_region, ranking), yend=exporter_region)) +
-  geom_point(size=4) +
-  scale_color_manual(values = habitat_source_colors) +
-  scale_y_reordered() +
-  labs(y = "", x = "Live weight (million t)") +
-  facet_wrap(~habitat_method, ncol = 1, scales = "free_y") +
-  theme_minimal() +
-  theme(legend.position = "none")
-
-# Largest regional import changes
-top_regional_import_change <- read.csv(file.path(datadir, "top_regional_import_change.csv")) %>%
-  mutate(habitat_method = factor(habitat_method, 
-                                 levels = c("marine capture", "inland capture", 
-                                            "marine aquaculture", "inland aquaculture", "unknown")))
-
-regional_import_change_plot <- top_regional_import_change %>%
-  ggplot(aes(x = change/1000000, y = reorder(importer_region, change), fill = habitat_method, color = habitat_method)) +
-  geom_segment(aes(x=0, xend=change/1000000, y=reorder(importer_region, change), yend=importer_region)) +
-  geom_point(size=4) +
-  scale_color_manual(values = habitat_source_colors) +
-  scale_y_reordered() +
-  labs(y = "", x = "Live weight (million t)") +
-  facet_wrap(~habitat_method, ncol = 1, scales = "free_y") +
-  theme_minimal() +
-  theme(legend.position = "none")
-
-ggarrange(
-  regional_export_change_plot,
-  regional_import_change_plot,
-  ncol = 2,
-  labels = c("Export", "Import")
-)
-
-ggsave(file.path(outdir, "regional_changes.png"))
-```
-
-```{r si_export_decreases_increases, fig.height = 6, fig.width = 5}
-top_export_increases <- read.csv(file.path(datadir, "top_export_increases.csv")) %>%
-  mutate(habitat_method = factor(habitat_method, 
-                                 levels = c("marine capture", "inland capture", 
-                                            "marine aquaculture", "inland aquaculture", "unknown")))
-top_export_decreases <- read.csv(file.path(datadir, "top_export_decreases.csv")) %>%
-  mutate(habitat_method = factor(habitat_method, 
-                                 levels = c("marine capture", "inland capture", 
-                                            "marine aquaculture", "inland aquaculture", "unknown")))
-
-exporter_increases_plot <- top_export_increases %>%
-  ggplot(aes(x = change/1000000, y = reorder(exporter_iso3c, ranking), fill = habitat_method, color = habitat_method)) +
-  geom_segment(aes(x=0, xend=change/1000000, y= reorder(exporter_iso3c, ranking), yend=exporter_iso3c)) +
-  geom_point(size=2) +
-  scale_color_manual(values = habitat_source_colors) +
-  scale_y_reordered() +
-  labs(y = "", x = "Live weight (million t)") +
-  facet_wrap(~habitat_method, ncol = 1, scales = "free_y") +
-  theme_minimal() +
-  theme(
-    legend.position = "none",
-    axis.text = element_text(size = 8)
-  )
-
-exporter_decreases_plot <- top_export_decreases %>%
-  ggplot(aes(x = change/1000000, y = reorder(exporter_iso3c, ranking), fill = habitat_method, color = habitat_method)) +
-  geom_segment(aes(x=0, xend=change/1000000, y= reorder(exporter_iso3c, ranking), yend=exporter_iso3c)) +
-  geom_point(size=2) +
-  scale_color_manual(values = habitat_source_colors) +
-  scale_y_reordered() +
-  labs(y = "", x = "Live weight (million t)") +
-  facet_wrap(~habitat_method, ncol = 1, scales = "free_y") +
-  theme_minimal() +
-  theme(
-    legend.position = "none",
-    axis.text = element_text(size = 8)
-  )
-
-ggarrange(
-  exporter_decreases_plot, exporter_increases_plot, nrow = 1
-)
-
-ggsave(file.path(outdir, "si_export_changes.png"))
-```
-
-```{r si_import_decreases_increases, fig.height = 6, fig.width = 5}
-top_import_increases <- read.csv(file.path(datadir, "top_import_increases.csv")) %>%
-  mutate(habitat_method = factor(habitat_method, 
-                                 levels = c("marine capture", "inland capture", 
-                                            "marine aquaculture", "inland aquaculture", "unknown")))
-top_import_decreases <- read.csv(file.path(datadir, "top_import_decreases.csv")) %>%
-  mutate(habitat_method = factor(habitat_method, 
-                                 levels = c("marine capture", "inland capture", 
-                                            "marine aquaculture", "inland aquaculture", "unknown")))
-
-importer_increases_plot <- top_import_increases %>%
-  ggplot(aes(x = change/1000000, y = reorder(importer_iso3c, ranking), fill = habitat_method, color = habitat_method)) +
-  geom_segment(aes(x=0, xend=change/1000000, y= reorder(importer_iso3c, ranking), yend=importer_iso3c)) +
-  geom_point(size=2) +
-  scale_color_manual(values = habitat_source_colors) +
-  scale_y_reordered() +
-  labs(y = "", x = "Live weight (million t)") +
-  facet_wrap(~habitat_method, ncol = 1, scales = "free_y") +
-  theme_minimal() +
-  theme(
-    legend.position = "none",
-    axis.text = element_text(size = 8)
-  )
-
-importer_decreases_plot <- top_import_decreases %>%
-  ggplot(aes(x = change/1000000, y = reorder(importer_iso3c, ranking), fill = habitat_method, color = habitat_method)) +
-  geom_segment(aes(x=0, xend=change/1000000, y= reorder(importer_iso3c, ranking), yend=importer_iso3c)) +
-  geom_point(size=2) +
-  scale_color_manual(values = habitat_source_colors) +
-  scale_y_reordered() +
-  labs(y = "", x = "Live weight (million t)") +
-  facet_wrap(~habitat_method, ncol = 1, scales = "free_y") +
-  theme_minimal() +
-  theme(
-    legend.position = "none",
-    axis.text = element_text(size = 8)
-  )
-
-ggarrange(
-  importer_decreases_plot, importer_increases_plot, nrow = 1
-)
-
-ggsave(file.path(outdir, "si_import_changes.png"))
-```
-
-```{r regional_avg_annual_change, fig.height = 8, fig.width = 7}
-regional_avg_annual_change <- read.csv(file.path(datadir, "regional_avg_annual_change.csv"))
+```{r si_fig4_regional_avg_annual_change, fig.height = 8, fig.width = 7}
+regional_avg_annual_change <- read.csv(file.path(datadir, "si_fig_4_data.csv"))
 
 regional_slopes_ranked <- regional_avg_annual_change %>%
   ggplot(aes(x = slope/1000, y = reorder(exporter_importer, slope), color = intraregion)) +
@@ -845,11 +1175,65 @@ regional_slopes_ranked <- regional_avg_annual_change %>%
 
 regional_slopes_ranked
 
-ggsave(file.path(outdir, "regional_avg_annual_change.png"))
+ggsave(file.path(outdir, "si_fig4.png"))
 ```
 
-```{r ldc_net_exports_habitat_method, fig.height = 4, fig.width = 7}
-ldc_net_habitat_method_summary <- read.csv(file.path(datadir, "ldc_net_habitat_method_summary.csv")) %>%
+```{r si_fig5a, fig.height = 4, fig.width = 6}
+dom_source_ts <- read.csv(file.path(datadir, "si_fig_5a_data.csv"))
+
+dom_source_ts_p <- dom_source_ts %>%
+  ggplot(aes(x = year, y = live_weight_t / 1000000, color = dom_source)) +
+  geom_line() +
+  scale_color_manual(values = c("#D38F35", "grey40", "#114F59")) +
+  theme_bw() +
+  labs(x = "", y = "Live weight\nmillion tonnes", color = "Source") +
+  theme(
+    legend.position = "bottom",
+    axis.text = element_text(size = 10),
+    legend.box.margin=margin(t = -25)
+  )
+
+dom_source_ts_p
+```
+
+```{r si_fig5b, fig.height = 4, fig.width = 7}
+dom_source_by_habitat_method <- read.csv(file.path(datadir, "si_fig_5b_data.csv"))
+
+dom_source_by_habitat_method_p <- dom_source_by_habitat_method %>%
+  # Set factor levels
+  mutate(habitat_method = factor(habitat_method, levels = c("marine capture", "inland capture",
+                                                            "marine aquaculture", "inland aquaculture",
+                                                            "unknown" ))) %>%
+  ggplot(aes(x = year, y = live_weight_t / 1000000, fill = habitat_method)) +
+  geom_area() +
+  scale_fill_manual(values = habitat_source_colors) +
+  theme_bw() +
+  labs(x = "", y = "Live weight\nmillion tonnes", fill = "Source") +
+  facet_wrap(~dom_source) +
+  theme(
+    legend.position = "bottom",
+    axis.text = element_text(size = 10),
+    panel.spacing = unit(5, "mm"),
+    legend.box.margin=margin(t = -15)
+  )
+
+ dom_source_by_habitat_method_p
+```
+
+```{r si_fig5, fig.height = 5, fig.width = 8}
+ ggarrange(
+   dom_source_ts_p,
+   dom_source_by_habitat_method_p,
+   nrow = 2,
+   labels = c("a", "b")
+)
+
+ggsave(file.path(outdir, "si_fig5.png"))
+```
+
+
+```{r si_fig6_ldc_net_exports_habitat_method, fig.height = 4, fig.width = 7}
+ldc_net_habitat_method_summary <- read.csv(file.path(datadir, "si_fig_6_data.csv")) %>%
   select(year, habitat_method, net_export)
 
 ldc_net_total <- ldc_net_habitat_method_summary %>%
@@ -876,14 +1260,15 @@ ldc_net_exports_by_source_plot <- ldc_net_habitat_method_summary %>%
 
 ldc_net_exports_by_source_plot
 
-ggsave(file.path(outdir, "ldc_net_exports_by_source.png"))
+ggsave(file.path(outdir, "si_fig6.png"))
 ```
 
 
-```{r custom_artis_ts, fig.height = 4, fig.width = 6}
-
-artis_ts <- read.csv(file.path(datadir, "artis_ts.csv"))
-custom_ts <- read.csv(file.path(datadir, "custom_ts.csv"))
+```{r si_fig7_custom_artis_ts, fig.height = 4, fig.width = 6}
+artis_ts <- read.csv(file.path(datadir, "si_fig_7_artis_ts.csv")) %>%
+  mutate(hs_version = factor(hs_version,
+                             levels = c("HS96", "HS02", "HS07", "HS12", "HS17")))
+custom_ts <- read.csv(file.path(datadir, "si_fig_7_custom_ts.csv"))
 
 ggplot() +
   geom_line(data = artis_ts, aes(x = year, y = product_weight_t, color = hs_version), linetype = "dashed", linewidth = 1) +
@@ -898,59 +1283,6 @@ ggplot() +
     axis.text = element_text(size = 10)
   )
 
-ggsave(file.path(outdir, "custom_artis_ts.png"))
-```
-
-```{r dom_source_ts, fig.height = 4, fig.width = 6}
-dom_source_ts <- read.csv(file.path(datadir, "dom_source_ts.csv"))
-
-dom_source_ts_p <- dom_source_ts %>%
-  ggplot(aes(x = year, y = live_weight_t / 1000000, color = dom_source)) +
-  geom_line() +
-  scale_color_manual(values = c("#D38F35", "grey40", "#114F59")) +
-  theme_bw() +
-  labs(x = "", y = "Live weight\nmillion tonnes", color = "Source") +
-  theme(
-    legend.position = "bottom",
-    axis.text = element_text(size = 10),
-    legend.box.margin=margin(t = -25)
-  )
-
-dom_source_ts_p
-```
-
-```{r dom_source_by_habitat_ts, fig.height = 4, fig.width = 7}
-dom_source_by_habitat_method <- read.csv(file.path(datadir, "dom_source_by_habitat_method.csv"))
-
-dom_source_by_habitat_method_p <- dom_source_by_habitat_method %>%
-  # Set factor levels
-  mutate(habitat_method = factor(habitat_method, levels = c("marine capture", "inland capture",
-                                                            "marine aquaculture", "inland aquaculture",
-                                                            "unknown" ))) %>%
-  ggplot(aes(x = year, y = live_weight_t / 1000000, fill = habitat_method)) +
-  geom_area() +
-  scale_fill_manual(values = habitat_source_colors) +
-  theme_bw() +
-  labs(x = "", y = "Live weight\nmillion tonnes", fill = "Source") +
-  facet_wrap(~dom_source) +
-  theme(
-    legend.position = "bottom",
-    axis.text = element_text(size = 10),
-    panel.spacing = unit(5, "mm"),
-    legend.box.margin=margin(t = -15)
-  )
-
- dom_source_by_habitat_method_p
-```
-
-```{r dom_source_overview, fig.height = 5, fig.width = 8}
- ggarrange(
-   dom_source_ts_p,
-   dom_source_by_habitat_method_p,
-   nrow = 2,
-   labels = c("a", "b")
-)
-
-ggsave(file.path(outdir, "dom_source_2019_overview.png"))
+ggsave(file.path(outdir, "si_fig7.png"))
 ```
 
