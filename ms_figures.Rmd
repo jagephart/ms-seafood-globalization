@@ -35,7 +35,7 @@ library(CoordinateCleaner)
 ```{r load_data}
 # Set directories
 datadir <- "qa/manuscript_archive/manuscript_inputs"
-outdir <- "qa/manuscript_archives/figures"
+outdir <- "qa/manuscript_archive/figures"
 ```
 
 ```{r color_palettes}
@@ -90,6 +90,7 @@ fig1a <- fig1a_data %>%
   labs(y = "Exports\n(mil. t, live weight)", fill = "Source", x = "") +
   theme_bw() +
   theme(legend.position = "bottom",
+        text = element_text(size = 10),
         axis.title.y = element_text(size = 12),
         axis.text.x = element_text(size = 12),
         axis.text.y = element_text(size = 12),
@@ -222,8 +223,8 @@ ggarrange(fig1a,
           common.legend = TRUE, legend = "bottom",
           ncol = 1, nrow = 3, labels = c("a", ""))
 
-ggsave(file.path(outdir, "fig1.png"))
-# ggsave(file.path(outdir, "fig1.pdf"), device = "pdf", height = )
+# ggsave(file.path(outdir, "fig1.png"))
+ggsave(file.path(outdir, "fig1.pdf"), device = "pdf", height = 150, width = 180, units = "mm")
 ```
 
 # Figure 2: Foreign consumption trends
@@ -362,6 +363,7 @@ marine_cap_map
 marine_cap_stacked_bar <- marine_cap_sciname %>%
   mutate(common_name = case_when(
     common_name == "alaska pollock(=walleye poll.)" ~ "alaska pollock",
+    common_name == "ray-finned fishes" ~ "ray finned fishes",
     TRUE ~ common_name
   )) %>%
   mutate(common_name = gsub(" ", "\n", common_name)) %>%
@@ -380,7 +382,7 @@ marine_cap_stacked_bar <- marine_cap_sciname %>%
     panel.spacing = unit(2, "mm"),
     axis.ticks.x = element_blank(),
     axis.text.x = element_blank(),
-    axis.text.y = element_text(size = 8),
+    # axis.text.y = element_text(size = 8),
     plot.margin = unit(c(0, 5, -5, -10), "mm")
   )
 
@@ -397,8 +399,6 @@ marine_cap <- annotate_figure(
 )
 
 marine_cap
-
-# ggsave(file.path(outdir, "marine_cap_map_bar.png"), width = 6, height = 3, dpi = 300, units = "in", device = "png")
 ```
 
 ```{r marine_aqua_foreign_consumption}
@@ -474,8 +474,6 @@ marine_aqua <- annotate_figure(
 )
 
 marine_aqua
-
-# ggsave(file.path(outdir, "test.png"), width = 6, height = 3, dpi = 300, units = "in", device = "png")
 ```
 
 ```{r inland_cap_foreign_consumption}
@@ -522,7 +520,7 @@ inland_cap_map
 inland_cap_stacked_bar <- inland_cap_sciname %>%
   mutate(common_name = gsub(" nei", "", common_name)) %>%
   mutate(common_name = case_when(
-    common_name == "ray-finned fishes" ~ "\nray-finned fishes",
+    common_name == "ray-finned fishes" ~ "ray finned fishes",
     common_name == "freshwater siluroids" ~ "\nfreshwater siluroids",
     common_name == "nile perch" ~ "\nnile perch",
     TRUE ~ common_name
@@ -616,7 +614,7 @@ inland_aqua_map
 inland_aqua_stacked_bar <- inland_aqua_sciname %>%
   mutate(common_name = gsub(" nei", "", common_name)) %>%
   mutate(common_name = case_when(
-    common_name == "ray-finned fishes" ~ "\nray-finned fishes",
+    common_name == "ray-finned fishes" ~ "ray finned fishes",
     common_name == "striped catfish" ~ "\nstriped catfish",
     common_name == "freshwater siluroids" ~ "\nfreshwater siluroids",
     common_name == "nile tilapia" ~ "\nnile tilapia",
@@ -662,7 +660,7 @@ inland_aqua <- annotate_figure(
 
 inland_aqua
 
-ggsave(file.path(outdir, "test.png"), width = 6, height = 3, dpi = 300, units = "in", device = "png")
+# ggsave(file.path(outdir, "test.png"), width = 6, height = 3, dpi = 300, units = "in", device = "png")
 ```
 
 ```{r foreign_consumption, fig.height = 15, fig.width = 8}
@@ -674,7 +672,8 @@ ggarrange(marine_cap,
           heights = c(1, 1, 1, 1.1),
           common.legend = TRUE)
 
-ggsave(file.path(outdir, "fig2.png"), width = 9, height = 13, dpi = 500, unit = "in", device = "png")
+# ggsave(file.path(outdir, "fig2.png"), width = 9, height = 13, dpi = 500, unit = "in", device = "png")
+ggsave(file.path(outdir, "fig2.pdf"), width = 180, height = 320, unit = "mm", device = "pdf")
 ```
 
 
@@ -777,7 +776,8 @@ ggarrange(ggarrange(fig3a, NULL,
           fig3b, labels = c("", "b"),
           ncol = 1, heights = c(3, 4))
 
-ggsave(file.path(outdir, "fig3.png"))
+# ggsave(file.path(outdir, "fig3.png"))
+ggsave(file.path(outdir, "fig3.pdf"), height = 180, width = 180, unit = "mm", device = "pdf")
 ```
 
 
@@ -877,14 +877,25 @@ fig4 <- ggarrange(
 
 fig4
 
-ggsave(file.path(outdir, "fig4.png"))
+# ggsave(file.path(outdir, "fig4.png"))
+ggsave(file.path(outdir, "fig4.pdf"), height = 180, width = 180, unit = "mm", device = "pdf")
 ```
 
 
 # Supplementary Figures
 
 ```{r regional_sankey, fig.height = 3, fig.width = 3}
-regional_artis <- read.csv(file.path(datadir, "si_fig_1_data.csv"))
+regional_artis <- read.csv(file.path(datadir, "si_fig_1_data.csv")) %>%
+  mutate(exporter_region = case_when(
+    exporter_region == "North America" ~ "N.America",
+    exporter_region == "South America" ~ "S.America",
+    TRUE ~ exporter_region
+  )) %>%
+  mutate(importer_region = case_when(
+    importer_region == "North America" ~ "N.America",
+    importer_region == "South America" ~ "S.America",
+    TRUE ~ importer_region
+  ))
 
 marine_cap_regions <- regional_artis %>%
   filter(habitat == "marine" & method == "capture") %>%
@@ -895,7 +906,7 @@ marine_cap_regions <- regional_artis %>%
 
 marine_cap_regions$node <- factor(marine_cap_regions$node,
                               levels = c("Europe", "Oceania", "Asia",
-                                         "South America", "North America",
+                                         "S.America", "N.America",
                                          "Africa"))
 
 marine_cap_p <- marine_cap_regions %>%
@@ -916,7 +927,7 @@ marine_cap_p <- marine_cap_regions %>%
     legend.position = "none",
     axis.text.x = element_blank(),
     plot.title = element_text(hjust = 0.5),
-    plot.margin = margin(c(t=-0.5, r=-10, b=-1, l=-18), unit = "mm")
+    plot.margin = margin(c(t=-0.5, r=-7, b=-1, l=-25), unit = "mm")
     )
 
 marine_cap_p <- ggdraw(marine_cap_p) +
@@ -935,7 +946,7 @@ marine_aqua_regions <- regional_artis %>%
 
 marine_aqua_regions$node <- factor(marine_aqua_regions$node,
                               levels = c("Europe", "Oceania", "Asia",
-                                         "South America", "North America",
+                                         "S.America", "N.America",
                                          "Africa"))
 
 marine_aqua_p <- marine_aqua_regions %>%
@@ -956,7 +967,7 @@ marine_aqua_p <- marine_aqua_regions %>%
     legend.position = "none",
     axis.text.x = element_blank(),
     plot.title = element_text(hjust = 0.5),
-    plot.margin = margin(c(t=-0.5, r=-10, b=-1, l=-18), unit = "mm")
+    plot.margin = margin(c(t=-0.5, r=-7, b=-1, l=-25), unit = "mm")
     )
 
 marine_aqua_p <- ggdraw(marine_aqua_p) +
@@ -975,7 +986,7 @@ inland_cap_regions <- regional_artis %>%
 
 inland_cap_regions$node <- factor(inland_cap_regions$node,
                               levels = c("Europe", "Oceania", "Asia",
-                                         "South America", "North America",
+                                         "S.America", "N.America",
                                          "Africa"))
 
 inland_cap_p <- inland_cap_regions %>%
@@ -1015,7 +1026,7 @@ inland_aqua_regions <- regional_artis %>%
 
 inland_aqua_regions$node <- factor(inland_aqua_regions$node,
                               levels = c("Europe", "Oceania", "Asia",
-                                         "South America", "North America",
+                                         "S.America", "N.America",
                                          "Africa"))
 
 inland_aqua_p <- inland_aqua_regions %>%
@@ -1049,7 +1060,8 @@ ggarrange(marine_cap_p, inland_cap_p,
             ncol = 2, nrow = 2,
           labels = c("a", "b", "c", "d"))
 
-ggsave(file.path(outdir, "si_fig1.png"))
+# ggsave(file.path(outdir, "si_fig1.png"))
+ggsave(file.path(outdir, "si_fig1.pdf"), height = 200, width = 180, unit = "mm", device = "pdf")
 ```
 
 ```{r si_fig_2_top_exporters, fig.height = 7, fig.width = 6}
@@ -1101,7 +1113,8 @@ ggarrange(
   common.legend = TRUE
 )
 
-ggsave(file.path(outdir, "si_fig2.png"))
+# ggsave(file.path(outdir, "si_fig2.png"))
+ggsave(file.path(outdir, "si_fig2.pdf"), height = 200, width = 180, units = "mm", device = "pdf")
 ```
 
 
@@ -1154,7 +1167,8 @@ ggarrange(
   common.legend = TRUE
 )
 
-ggsave(file.path(outdir, "si_fig3.png"))
+# ggsave(file.path(outdir, "si_fig3.png"))
+ggsave(file.path(outdir, "si_fig3.pdf"), height = 200, width = 180, units = "mm", device = "pdf")
 ```
 
 ```{r si_fig4_regional_avg_annual_change, fig.height = 8, fig.width = 7}
@@ -1175,7 +1189,8 @@ regional_slopes_ranked <- regional_avg_annual_change %>%
 
 regional_slopes_ranked
 
-ggsave(file.path(outdir, "si_fig4.png"))
+# ggsave(file.path(outdir, "si_fig4.png"))
+ggsave(file.path(outdir, "si_fig4.pdf"), height = 200, width = 180, unit = "mm", device = "pdf")
 ```
 
 ```{r si_fig5a, fig.height = 4, fig.width = 6}
@@ -1200,9 +1215,10 @@ dom_source_ts_p
 dom_source_by_habitat_method <- read.csv(file.path(datadir, "si_fig_5b_data.csv"))
 
 dom_source_by_habitat_method_p <- dom_source_by_habitat_method %>%
+  mutate(habitat_method = gsub(" ", "\n", habitat_method)) %>%
   # Set factor levels
-  mutate(habitat_method = factor(habitat_method, levels = c("marine capture", "inland capture",
-                                                            "marine aquaculture", "inland aquaculture",
+  mutate(habitat_method = factor(habitat_method, levels = c("marine\ncapture", "inland\ncapture",
+                                                            "marine\naquaculture", "inland\naquaculture",
                                                             "unknown" ))) %>%
   ggplot(aes(x = year, y = live_weight_t / 1000000, fill = habitat_method)) +
   geom_area() +
@@ -1228,7 +1244,8 @@ dom_source_by_habitat_method_p <- dom_source_by_habitat_method %>%
    labels = c("a", "b")
 )
 
-ggsave(file.path(outdir, "si_fig5.png"))
+# ggsave(file.path(outdir, "si_fig5.png"))
+ggsave(file.path(outdir, "si_fig5.pdf"), height = 125, width = 180, unit = "mm", device = "pdf")
 ```
 
 
@@ -1260,7 +1277,8 @@ ldc_net_exports_by_source_plot <- ldc_net_habitat_method_summary %>%
 
 ldc_net_exports_by_source_plot
 
-ggsave(file.path(outdir, "si_fig6.png"))
+# ggsave(file.path(outdir, "si_fig6.png"))
+ggsave(file.path(outdir, "si_fig6.pdf"), height = 80, width = 180, unit = "mm", device = "pdf")
 ```
 
 
@@ -1271,18 +1289,19 @@ artis_ts <- read.csv(file.path(datadir, "si_fig_7_artis_ts.csv")) %>%
 custom_ts <- read.csv(file.path(datadir, "si_fig_7_custom_ts.csv"))
 
 ggplot() +
-  geom_line(data = artis_ts, aes(x = year, y = product_weight_t, color = hs_version), linetype = "dashed", linewidth = 1) +
-  geom_line(data = custom_ts, aes(x = year, y = product_weight_t, color = hs_version), linewidth = 0.5, linetype = "solid") +
+  geom_line(data = artis_ts, aes(x = year, y = product_weight_t/1e6, color = hs_version), linetype = "dashed", linewidth = 1) +
+  geom_line(data = custom_ts, aes(x = year, y = product_weight_t/1e6, color = hs_version), linewidth = 0.5, linetype = "solid") +
   scale_color_manual(
     values = c("Custom ARTIS Time series" = "black", "HS96" = "#741A32", "HS02" = "#B34232", "HS07" = "#D38F35", "HS12" = "red", "HS17" = "#114F59")
   ) +
-  labs(x = "Year", y = "Product Weight (tonnes)", color = "HS Version") +
+  labs(x = "Year", y = "Product Weight (million tonnes)", color = "HS Version") +
   theme_bw() +
   theme(
     legend.position = "bottom",
     axis.text = element_text(size = 10)
   )
 
-ggsave(file.path(outdir, "si_fig7.png"))
+# ggsave(file.path(outdir, "si_fig7.png"))
+ggsave(file.path(outdir, "si_fig7.pdf"), height = 80, width = 180, unit = "mm", device = "pdf")
 ```
 
