@@ -777,7 +777,7 @@ ggarrange(ggarrange(fig3a, NULL,
           ncol = 1, heights = c(3, 4))
 
 # ggsave(file.path(outdir, "fig3.png"))
-ggsave(file.path(outdir, "fig3.pdf"), height = 180, width = 180, unit = "mm", device = "pdf")
+ggsave(file.path(outdir, "fig3.pdf"), height = 210, width = 180, unit = "mm", device = "pdf")
 ```
 
 
