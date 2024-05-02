@@ -369,7 +369,7 @@ marine_cap_stacked_bar <- marine_cap_sciname %>%
   mutate(common_name = gsub(" ", "\n", common_name)) %>%
   mutate(common_name = reorder(common_name, desc(total))) %>%
   ggplot(aes(x = consumption_live_t/consumption_live_magnitude, y = flow, fill = region)) +
-  geom_bar(stat = "identity", position = "stack", width = 0.8) +
+  geom_bar(stat = "identity", position = "stack", width = 0.7) +
   scale_fill_manual(values = region6_palette) +
   labs(x = "", y = "") +
   lims(x = c(stacked_bar_min, stacked_bar_max)) +
@@ -379,7 +379,7 @@ marine_cap_stacked_bar <- marine_cap_sciname %>%
     strip.text.y.left = element_text(size = 8),
     strip.placement = "outside",
     legend.position = "none",
-    panel.spacing = unit(2, "mm"),
+    panel.spacing = unit(0.5, "mm"),
     axis.ticks.x = element_blank(),
     axis.text.x = element_blank(),
     # axis.text.y = element_text(size = 8),
@@ -445,7 +445,7 @@ marine_aqua_stacked_bar <- marine_aqua_sciname %>%
   mutate(common_name = gsub(" ", "\n", common_name))%>%
   mutate(common_name = reorder(common_name, desc(total))) %>%
   ggplot(aes(x = consumption_live_t/consumption_live_magnitude, y = flow, fill = region)) +
-  geom_bar(stat = "identity", position = "stack", width = 0.8) +
+  geom_bar(stat = "identity", position = "stack", width = 0.7) +
   scale_fill_manual(values = region6_palette) +
   labs(x = "", y = "") +
   lims(x = c(stacked_bar_min, stacked_bar_max)) +
@@ -455,7 +455,7 @@ marine_aqua_stacked_bar <- marine_aqua_sciname %>%
     strip.text.y.left = element_text(size = 8),
     strip.placement = "right",
     legend.position = "none",
-    panel.spacing = unit(2, "mm"),
+    panel.spacing = unit(0.5, "mm"),
     axis.ticks.x = element_blank(),
     axis.text.x = element_blank(),
     plot.margin = unit(c(0, 5, -5, -10), "mm")
@@ -528,7 +528,7 @@ inland_cap_stacked_bar <- inland_cap_sciname %>%
   mutate(common_name = gsub(" ", "\n", common_name)) %>%
   mutate(common_name = reorder(common_name, desc(total))) %>%
   ggplot(aes(x = consumption_live_t/consumption_live_magnitude, y = flow, fill = region)) +
-  geom_bar(stat = "identity", position = "stack", width = 0.8) +
+  geom_bar(stat = "identity", position = "stack", width = 0.7) +
   scale_fill_manual(values = region6_palette) +
   labs(x = "", y = "") +
   lims(x = c(stacked_bar_min, stacked_bar_max)) +
@@ -540,7 +540,7 @@ inland_cap_stacked_bar <- inland_cap_sciname %>%
     legend.position = "none",
     axis.ticks.x = element_blank(),
     axis.text.x = element_blank(),
-    panel.spacing = unit(2, "mm"),
+    panel.spacing = unit(0.5, "mm"),
     plot.margin = margin(r = 5, l=-10, b=-5, unit="mm")# unit(c(, 5, 0, -10), "mm")
   )
 
@@ -628,7 +628,7 @@ inland_aqua_stacked_bar <- inland_aqua_sciname %>%
     TRUE ~ region
   )) %>%
   ggplot(aes(x = consumption_live_t/consumption_live_magnitude, y = flow, fill = region)) +
-  geom_bar(stat = "identity", position = "stack", width = 0.8) +
+  geom_bar(stat = "identity", position = "stack", width = 0.7) +
   scale_fill_manual(values = region6_palette) +
   labs(x = "", y = "", fill = "") +
   lims(x = c(stacked_bar_min, stacked_bar_max)) +
@@ -643,7 +643,7 @@ inland_aqua_stacked_bar <- inland_aqua_sciname %>%
     legend.key.size = unit(3, "mm"),
     legend.box.margin = margin(l = -25, unit = "mm"),
     legend.margin = margin(t = -7, b = 0, unit = "mm"),
-    panel.spacing = unit(2, "mm"),
+    panel.spacing = unit(0.5, "mm"),
     plot.margin = unit(c(0, 5, 0, -10), "mm")
   )
 
@@ -673,7 +673,7 @@ ggarrange(marine_cap,
           common.legend = TRUE)
 
 # ggsave(file.path(outdir, "fig2.png"), width = 9, height = 13, dpi = 500, unit = "in", device = "png")
-ggsave(file.path(outdir, "fig2.pdf"), width = 180, height = 320, unit = "mm", device = "pdf")
+ggsave(file.path(outdir, "fig2.pdf"), width = 180, height = 295, unit = "mm", device = "pdf")
 ```
 
 
