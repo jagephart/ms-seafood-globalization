@@ -17,7 +17,6 @@ library(tidytext)
 ```{r load_data}
 # Directory
 datadir <- "data"
-
 global_export_by_source <- read.csv(file.path(datadir, "global_export_by_source.csv"))
 all_degree_summary <- read.csv(file.path(datadir, "all_degree_summary.csv"))
 habitat_method_degree_summary <- read.csv(file.path(datadir, "habitat_method_degree_summary.csv"))
@@ -196,7 +195,7 @@ Since 1996, aquatic food exports have become moderately less concentrated, with 
 
 Though aquatic food production, distribution, and consumption remain highly uneven (Hicks et al. 2022), we found declining import concentration, with `r import_concentration_n_countries %>% filter(year == 1996) %>% pull(n)` countries comprising `r cumulative_percent_threshold`% of imports in 1996 versus `r import_concentration_n_countries %>% filter(year == 2019) %>% pull(n)` countries in 2019 (Fig 2e). The more dispersed import patterns are likely associated with growing populations and expanding middle classes and urbanization, particularly in low- and middle-income countries, which are responsible for increasing aquatic food demand in many countries (Naylor et al. 2021; SOFIA 2022). However, the relationship between aquatic food demand and income varies across aquatic foods, with demand generally increasing with income for higher quality fish, but falling for lower quality fish (Naylor et al. 2021). 
 
-![Figure 1: Increases in global export of aquatic foods. a) Exports of global marine and freshwater aquaculture and fishery products (t live weight equivalent) from 1996-2019. b) Percent of global marine and freshwater aquaculture and fishery production exported, excluding re-exports. c) Average number of export partners (out degree) by production method and environment. d) Number of countries comprising 75% of global exports by production method and environment with the global total in the black line.  e) Number of countries comprising 75% of global imports by production method and environment with the global total in the black line.](qa/outputs_20240221/fig1.png)
+![Figure 1: Increases in global export of aquatic foods. a) Exports of global marine and freshwater aquaculture and fishery products (t live weight equivalent) from 1996-2019. b) Percent of global marine and freshwater aquaculture and fishery production exported, excluding re-exports. c) Average number of export partners (out degree) by production method and environment. d) Number of countries comprising 75% of global exports by production method and environment with the global total in the black line.  e) Number of countries comprising 75% of global imports by production method and environment with the global total in the black line.](figures/fig1.pdf)
 
 
 ## Other summary stats
@@ -235,7 +234,7 @@ Intraregional trade tends to be higher than interregional trade for all products
 
 Across regions, Europe and North America have the highest net imports while South America has the highest net exports (Fig 2a). Least developed countries collectively are net exporters of aquatic foods across all production methods, with net exports almost tripling between 1996 and their 2018 peak (Fig S7). Least developed country net exports are dominated by marine capture products, which nearly quadrupled from 1996-2019. Net exports of aquatic foods may be economically beneficial to least developed countries where high value species are exported and revenue used to purchase other foods (Asche et al, 2015). However, economic and political barriers inhibit these wealth-based benefits from being realized (Hicks et al. 2022). Further, recent work exploring movement of nutrients derived from fisheries suggests international trade is driving redistribution of essential micronutrients prevalent and bioavailable in aquatic foods from areas of high deficiency in middle and low income countries to developed nations with greater nutrient security (Nash et al, 2022). Further, Nash et al (2022) found evidence of high vulnerability to future shifts in trade practices among middle and low income nations currently benefiting from trade in aquatic foods.
 
-![Figure 2: Regional trade flows by production source (habitat and method). a) Total imports (positive) and exports (negative) colored by source, with net import trend in black. b) Bilateral flows colored by production source with exporting region along the rows and importing region along the columns. Values represent million tonnes in live weight equivalents. Note the scale difference across rows.](qa/outputs_20240221/fig2.png)
+![Figure 2: Regional trade flows by production source (habitat and method). a) Total imports (positive) and exports (negative) colored by source, with net import trend in black. b) Bilateral flows colored by production source with exporting region along the rows and importing region along the columns. Values represent million tonnes in live weight equivalents. Note the scale difference across rows.](figures/fig2.pdf)
 
 ## Other summary stats
 
@@ -368,5 +367,5 @@ Estimating the foreign versus domestic source of consumption requires identifyin
 
 ## Other summary stats 
 
-![Figure 3: Aquatic food apparent consumption (supply) trends and regional patterns. a) Global aquatic food apparent consumption by production source over time. b) Regional aquatic food apparent consumption by production source over time. c) Global aquatic food domestic versus foreign sourcing over time. d) Regional aquatic food domestic versus foreign sourcing over time. ](qa/outputs_20240221/fig3.png)
+![Figure 3: Aquatic food apparent consumption (supply) trends and regional patterns. a) Global aquatic food apparent consumption by production source over time. b) Regional aquatic food apparent consumption by production source over time. c) Global aquatic food domestic versus foreign sourcing over time. d) Regional aquatic food domestic versus foreign sourcing over time. ](figures/fig3.pdf)
 
