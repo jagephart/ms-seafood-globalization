@@ -16,7 +16,7 @@ library(tidytext)
 
 ```{r load_data}
 # Directory
-datadir <- "qa/manuscript_archive/manuscript_inputs"
+datadir <- "data"
 
 global_export_by_source <- read.csv(file.path(datadir, "global_export_by_source.csv"))
 all_degree_summary <- read.csv(file.path(datadir, "all_degree_summary.csv"))
