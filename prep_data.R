@@ -1,4 +1,8 @@
 
+################################################################################
+######## NO NEED TO RUN THIS SCRIPT TO REPLICATE RESULTS OR FIGURES ############
+################################################################################
+
 library(tidyverse)
 library(countrycode)
 library(circlize)
@@ -16,7 +20,6 @@ library(tidytext)
 #-------------------------------------------------------------------------------
 # Directory listing
 
-# outdir <- "qa/outputs_20240315"
 outdir <- "qa/manuscript_archive/manuscript_inputs"
 #-------------------------------------------------------------------------------
 # Initial database pulls
