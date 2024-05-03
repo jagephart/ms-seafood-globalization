@@ -32,10 +32,15 @@ library(rnaturalearth)
 library(CoordinateCleaner)
 ```
 
-```{r load_data}
+```{r data_setup}
 # Set directories
-datadir <- "qa/manuscript_archive/manuscript_inputs"
-outdir <- "qa/manuscript_archive/figures"
+datadir <- "data"
+outdir <- "figures"
+
+# Create figures directory
+if (!dir.exists(outdir)) {
+  dir.create(outdir)
+}
 ```
 
 ```{r color_palettes}
