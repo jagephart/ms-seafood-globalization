@@ -56,9 +56,6 @@ qa/
 # Powerpoint
 *.pptx
 
-# Temporary data folder
-data/*
-
 # Manuscript text
 ms/*
 

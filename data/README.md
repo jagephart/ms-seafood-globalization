@@ -1,0 +1,1 @@
+Place all files within the "manuscript_inputs" directory into this data folder.
