@@ -49,6 +49,7 @@ qa/
 # pdf and html files
 *.pdf
 *.html
+*.zip
 
 # Images
 *.png
@@ -61,3 +62,10 @@ ms/*
 
 # Archive
 Archive/*
+
+# select folders 
+data/*
+outputs_06022024/*
+
+
+
