@@ -20,7 +20,7 @@ library(tidytext)
 #-------------------------------------------------------------------------------
 # Directory listing
 
-outdir <- "qa/manuscript_archive/manuscript_inputs"
+outdir <- "data"
 #-------------------------------------------------------------------------------
 # Initial database pulls
 
@@ -89,7 +89,7 @@ sciname_metadata <- dbGetQuery(con, "SELECT * FROM sciname") %>%
 pop <- dbGetQuery(con, "SELECT * FROM population") %>%
   select(-record_id)
 
-consumption <- dbGetQuery(con, "SELECT * FROM complete_consumption WHERE 
+consumption <- dbGetQuery(con, "SELECT * FROM consumption WHERE 
 ((hs_version = 'HS96' AND year >= 1996 AND year <= 2003) OR
 (hs_version = 'HS02' AND year >= 2004 AND year <= 2009) OR
 (hs_version = 'HS07' AND year >= 2010 AND year <= 2012) OR

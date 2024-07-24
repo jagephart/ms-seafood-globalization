@@ -155,10 +155,10 @@ fig1c_out_degree
 ```
 
 ```{r fig1de}
-habitat_source_colors_v2 <- c("#F7AF75", # light orange = inland aquaculture
-                              "#86ADA7", # light blue = freshwater capture
-                              "#F37542", # medium orange = marine aquaculture
-                              "#1B708F", # blue = marine capture
+habitat_source_colors_v2 <- c("#1B708F", # blue = marine capture
+                          "#86ADA7", # light blue = freshwater capture
+                          "#F37542", # medium orange = marine aquaculture
+                          "#F7AF75", # light orange = inland aquaculture
                               "black" # unknown
                           )
 
@@ -195,9 +195,10 @@ fig1d
 
 fig1e <- ggplot() +
   geom_line(data = import_n_countries_concentration_by_source %>% 
+              filter(habitat_method != "unknown") %>%
               mutate(habitat_method = factor(habitat_method, 
                                  levels = c("marine capture", "inland capture", 
-                                            "marine aquaculture", "inland aquaculture", "unknown"))), 
+                                            "marine aquaculture", "inland aquaculture"))), 
       aes(x = year, y = n, color = habitat_method)) +
   geom_line(data = import_n_countries_concentration, aes(x = year, y = n, color = "total"), linewidth = 1) +
     scale_color_manual(values = habitat_source_colors_v2) +
@@ -267,7 +268,7 @@ consumer_map_df <- marine_cap_foreign_consumption %>%
   ungroup() %>%
   left_join(
     world,
-    by = c("consumer_iso3c"="iso_a3")
+    by = c("consumer_iso3c"="iso_a3_eh")
   )
 
 country_centroids <- countryref %>%
